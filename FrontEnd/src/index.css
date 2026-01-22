@@ -1,0 +1,185 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Warm, earthy palette for flooring business */
+    --background: 40 33% 98%;
+    --foreground: 220 20% 15%;
+
+    --card: 40 25% 97%;
+    --card-foreground: 220 20% 15%;
+
+    --popover: 40 33% 98%;
+    --popover-foreground: 220 20% 15%;
+
+    /* Terracotta primary */
+    --primary: 16 65% 45%;
+    --primary-foreground: 40 33% 98%;
+
+    /* Warm cream secondary */
+    --secondary: 38 40% 92%;
+    --secondary-foreground: 220 20% 20%;
+
+    /* Muted warm grays */
+    --muted: 40 20% 94%;
+    --muted-foreground: 220 10% 45%;
+
+    /* Copper accent */
+    --accent: 25 75% 50%;
+    --accent-foreground: 40 33% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 40 33% 98%;
+
+    /* Success/availability */
+    --success: 142 71% 35%;
+    --success-foreground: 40 33% 98%;
+
+    /* Warning/pending */
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 20% 15%;
+
+    --border: 35 25% 88%;
+    --input: 35 25% 88%;
+    --ring: 16 65% 45%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar */
+    --sidebar-background: 220 20% 12%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 16 65% 55%;
+    --sidebar-primary-foreground: 40 33% 98%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 40 20% 92%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 16 65% 55%;
+
+    /* Custom gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(16 65% 45%) 0%, hsl(25 75% 50%) 100%);
+    --gradient-warm: linear-gradient(180deg, hsl(40 33% 98%) 0%, hsl(38 40% 92%) 100%);
+    --gradient-overlay: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 100%);
+    
+    /* Shadows */
+    --shadow-soft: 0 4px 20px -2px hsl(220 20% 15% / 0.08);
+    --shadow-card: 0 2px 12px -2px hsl(220 20% 15% / 0.06);
+    --shadow-elevated: 0 12px 40px -8px hsl(220 20% 15% / 0.15);
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 40 20% 95%;
+
+    --card: 220 18% 13%;
+    --card-foreground: 40 20% 95%;
+
+    --popover: 220 20% 10%;
+    --popover-foreground: 40 20% 95%;
+
+    --primary: 16 70% 55%;
+    --primary-foreground: 220 20% 10%;
+
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 40 20% 92%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 40 10% 60%;
+
+    --accent: 25 80% 55%;
+    --accent-foreground: 220 20% 10%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 40 20% 95%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 220 20% 10%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 220 20% 10%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 16 70% 55%;
+
+    --sidebar-background: 220 25% 8%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 16 70% 55%;
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 20% 14%;
+    --sidebar-accent-foreground: 40 20% 92%;
+    --sidebar-border: 220 15% 15%;
+    --sidebar-ring: 16 70% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Playfair Display', serif;
+  }
+
+  .font-body {
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-warm {
+    background: var(--gradient-warm);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
