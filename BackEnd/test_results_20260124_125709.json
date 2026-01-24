@@ -1,0 +1,80 @@
+[
+  {
+    "test": "Health Check",
+    "success": true,
+    "message": "Service: Pisos Kermy API, Status: healthy",
+    "timestamp": "2026-01-24T12:56:40.602420"
+  },
+  {
+    "test": "Login Cliente",
+    "success": true,
+    "message": "Usuario: Juan Perez Actualizado, Role: CLIENT",
+    "timestamp": "2026-01-24T12:56:42.761920"
+  },
+  {
+    "test": "Login Admin",
+    "success": true,
+    "message": "Usuario: Administrador Pisos Kermy, Role: ADMIN",
+    "timestamp": "2026-01-24T12:56:44.913926"
+  },
+  {
+    "test": "Ver Perfil Cliente",
+    "success": true,
+    "message": "Email: cliente1@example.com, Nombre: Juan Perez Actualizado",
+    "timestamp": "2026-01-24T12:56:46.983963"
+  },
+  {
+    "test": "Actualizar Perfil",
+    "success": true,
+    "message": "Nuevo nombre: Juan Perez Test, Nuevo tel: 99998888",
+    "timestamp": "2026-01-24T12:56:49.077274"
+  },
+  {
+    "test": "Refrescar Token",
+    "success": true,
+    "message": "Nuevo access token: True, Nuevo refresh token: True",
+    "timestamp": "2026-01-24T12:56:51.174163"
+  },
+  {
+    "test": "Cerrar Sesión",
+    "success": true,
+    "message": "Token revocado correctamente",
+    "timestamp": "2026-01-24T12:56:57.486554"
+  },
+  {
+    "test": "Listar Usuarios",
+    "success": true,
+    "message": "Total usuarios: 3",
+    "timestamp": "2026-01-24T12:56:59.560711"
+  },
+  {
+    "test": "Obtener Usuario por ID",
+    "success": true,
+    "message": "Usuario: Juan Perez Test",
+    "timestamp": "2026-01-24T12:57:01.644584"
+  },
+  {
+    "test": "Ver Reservas Cliente",
+    "success": true,
+    "message": "Total reservas: 0",
+    "timestamp": "2026-01-24T12:57:03.738371"
+  },
+  {
+    "test": "Ver Todas las Reservas",
+    "success": true,
+    "message": "Total reservas: 0",
+    "timestamp": "2026-01-24T12:57:05.850630"
+  },
+  {
+    "test": "Protección sin Token",
+    "success": true,
+    "message": "Ruta protegida correctamente",
+    "timestamp": "2026-01-24T12:57:07.896586"
+  },
+  {
+    "test": "Control de Permisos",
+    "success": true,
+    "message": "RBAC funciona correctamente",
+    "timestamp": "2026-01-24T12:57:09.987623"
+  }
+]

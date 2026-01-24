@@ -1,0 +1,639 @@
+#!/usr/bin/env python3
+"""
+Script de pruebas automatizado para el backend de Pisos Kermy
+Verifica todos los endpoints implementados y genera un reporte
+"""
+
+import requests
+import json
+from datetime import datetime
+from colorama import Fore, Style, init
+
+# Inicializar colorama para colores en Windows
+init(autoreset=True)
+
+BASE_URL = "http://localhost:5000"
+
+# Variables globales para tokens
+client_token = None
+admin_token = None
+client_refresh_token = None
+test_reservation_id = None
+test_reservation_id_for_reject = None
+test_results = []
+
+
+def log_test(test_name, success, message="", response=None):
+    """Registra el resultado de una prueba"""
+    status = f"{Fore.GREEN}✓ PASS{Style.RESET_ALL}" if success else f"{Fore.RED}✗ FAIL{Style.RESET_ALL}"
+    print(f"\n{status} {test_name}")
+    if message:
+        print(f"  {message}")
+    if response and not success:
+        print(f"  Response: {response}")
+    
+    test_results.append({
+        'test': test_name,
+        'success': success,
+        'message': message,
+        'timestamp': datetime.now().isoformat()
+    })
+
+
+def print_section(title):
+    """Imprime un encabezado de sección"""
+    print(f"\n{'='*70}")
+    print(f"{Fore.CYAN}{title}{Style.RESET_ALL}")
+    print('='*70)
+
+
+def test_health_check():
+    """Test 0: Health check"""
+    print_section("TEST 0: Health Check")
+    try:
+        response = requests.get(f"{BASE_URL}/health")
+        if response.status_code == 200:
+            data = response.json()
+            log_test("Health Check", True, f"Service: {data.get('service')}, Status: {data.get('status')}")
+        else:
+            log_test("Health Check", False, f"Status code: {response.status_code}")
+    except Exception as e:
+        log_test("Health Check", False, str(e))
+
+
+def test_login_client():
+    """Test 1: Login como Cliente (CU-001)"""
+    global client_token, client_refresh_token
+    print_section("TEST 1: Login Cliente (CU-001)")
+    
+    try:
+        payload = {
+            "email": "cliente1@example.com",
+            "password": "Cliente123!"
+        }
+        response = requests.post(f"{BASE_URL}/api/auth/login", json=payload)
+        
+        if response.status_code == 200:
+            data = response.json()
+            client_token = data.get('access_token')
+            client_refresh_token = data.get('refresh_token')
+            user = data.get('user', {})
+            log_test(
+                "Login Cliente", 
+                True, 
+                f"Usuario: {user.get('name')}, Role: {user.get('role')}"
+            )
+        else:
+            log_test("Login Cliente", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Login Cliente", False, str(e))
+
+
+def test_login_admin():
+    """Test 2: Login como Admin"""
+    global admin_token
+    print_section("TEST 2: Login Admin")
+    
+    try:
+        payload = {
+            "email": "admin@pisoskermy.com",
+            "password": "Admin123!"
+        }
+        response = requests.post(f"{BASE_URL}/api/auth/login", json=payload)
+        
+        if response.status_code == 200:
+            data = response.json()
+            admin_token = data.get('access_token')
+            user = data.get('user', {})
+            log_test(
+                "Login Admin", 
+                True, 
+                f"Usuario: {user.get('name')}, Role: {user.get('role')}"
+            )
+        else:
+            log_test("Login Admin", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Login Admin", False, str(e))
+
+
+def test_get_profile_client():
+    """Test 3: Ver perfil de cliente"""
+    print_section("TEST 3: Ver Perfil Cliente")
+    
+    if not client_token:
+        log_test("Ver Perfil Cliente", False, "No hay token de cliente")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_token}"}
+        response = requests.get(f"{BASE_URL}/api/users/profile", headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            log_test(
+                "Ver Perfil Cliente", 
+                True, 
+                f"Email: {data.get('email')}, Nombre: {data.get('name')}"
+            )
+        else:
+            log_test("Ver Perfil Cliente", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Ver Perfil Cliente", False, str(e))
+
+
+def test_update_profile():
+    """Test 4: Actualizar perfil (CU-015)"""
+    print_section("TEST 4: Actualizar Perfil (CU-015)")
+    
+    if not client_token:
+        log_test("Actualizar Perfil", False, "No hay token de cliente")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_token}"}
+        payload = {
+            "name": "Juan Perez Test",
+            "phone": "99998888"
+        }
+        response = requests.put(f"{BASE_URL}/api/users/profile", headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            data = response.json()
+            user = data.get('user', {})
+            log_test(
+                "Actualizar Perfil", 
+                True, 
+                f"Nuevo nombre: {user.get('name')}, Nuevo tel: {user.get('phone')}"
+            )
+        else:
+            log_test("Actualizar Perfil", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Actualizar Perfil", False, str(e))
+
+
+def test_refresh_token():
+    """Test 5: Refrescar token (CU-014)"""
+    print_section("TEST 5: Refrescar Token (CU-014)")
+    
+    if not client_refresh_token:
+        log_test("Refrescar Token", False, "No hay refresh token")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_refresh_token}"}
+        response = requests.post(f"{BASE_URL}/api/auth/refresh", headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            has_access = 'access_token' in data
+            has_refresh = 'refresh_token' in data
+            log_test(
+                "Refrescar Token", 
+                True, 
+                f"Nuevo access token: {has_access}, Nuevo refresh token: {has_refresh}"
+            )
+        else:
+            log_test("Refrescar Token", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Refrescar Token", False, str(e))
+
+
+def test_logout():
+    """Test 6: Cerrar sesión (CU-013)"""
+    print_section("TEST 6: Cerrar Sesión (CU-013)")
+    
+    # Crear un nuevo token para probar logout
+    try:
+        payload = {"email": "cliente2@example.com", "password": "Cliente123!"}
+        response = requests.post(f"{BASE_URL}/api/auth/login", json=payload)
+        
+        if response.status_code != 200:
+            log_test("Cerrar Sesión - Login previo", False, "No se pudo hacer login")
+            return
+        
+        temp_token = response.json().get('access_token')
+        
+        # Hacer logout
+        headers = {"Authorization": f"Bearer {temp_token}"}
+        response = requests.post(f"{BASE_URL}/api/auth/logout", headers=headers)
+        
+        if response.status_code == 200:
+            # Verificar que el token ya no funciona
+            response2 = requests.get(f"{BASE_URL}/api/users/profile", headers=headers)
+            token_revoked = response2.status_code == 401 and 'revocado' in response2.text.lower()
+            
+            log_test(
+                "Cerrar Sesión", 
+                token_revoked, 
+                "Token revocado correctamente" if token_revoked else "Token aún funciona"
+            )
+        else:
+            log_test("Cerrar Sesión", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Cerrar Sesión", False, str(e))
+
+
+def test_get_users_admin():
+    """Test 7: Listar usuarios (ADMIN)"""
+    print_section("TEST 7: Listar Usuarios (ADMIN)")
+    
+    if not admin_token:
+        log_test("Listar Usuarios", False, "No hay token de admin")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        response = requests.get(f"{BASE_URL}/api/users/", headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            users = data.get('users', [])
+            log_test("Listar Usuarios", True, f"Total usuarios: {len(users)}")
+        else:
+            log_test("Listar Usuarios", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Listar Usuarios", False, str(e))
+
+
+def test_get_user_by_id():
+    """Test 8: Obtener usuario por ID"""
+    print_section("TEST 8: Obtener Usuario por ID")
+    
+    if not admin_token:
+        log_test("Obtener Usuario por ID", False, "No hay token de admin")
+        return
+    
+    try:
+        # ID del cliente1 (del seed)
+        user_id = "6974f610f21dfdc1652bb4fb"
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        response = requests.get(f"{BASE_URL}/api/users/{user_id}", headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            log_test("Obtener Usuario por ID", True, f"Usuario: {data.get('name')}")
+        else:
+            log_test("Obtener Usuario por ID", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Obtener Usuario por ID", False, str(e))
+
+
+def test_create_reservation():
+    """Test 9: Crear reserva (Cliente)"""
+    global test_reservation_id
+    print_section("TEST 9: Crear Reserva (Cliente)")
+    
+    if not client_token:
+        log_test("Crear Reserva", False, "No hay token de cliente")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_token}"}
+        # ID de uno de los productos del seed
+        payload = {
+            "items": [
+                {
+                    "product_id": "6974f610f21dfdc1652bb4fd",
+                    "variant_id": "6974f610f21dfdc1652bb4fe",
+                    "quantity": 5,
+                    "unit_price": 25.99
+                }
+            ],
+            "delivery_address": "San José, Escazú, Calle 123",
+            "contact_phone": "88887777",
+            "notes": "Reserva de prueba automatizada"
+        }
+        response = requests.post(f"{BASE_URL}/api/reservations/", headers=headers, json=payload)
+        
+        if response.status_code == 201:
+            data = response.json()
+            reservation = data.get('reservation', {})
+            test_reservation_id = reservation.get('_id')
+            log_test(
+                "Crear Reserva", 
+                True, 
+                f"Reserva ID: {test_reservation_id}, Estado: {reservation.get('state')}"
+            )
+        else:
+            log_test("Crear Reserva", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Crear Reserva", False, str(e))
+
+
+def test_get_reservations_client():
+    """Test 10: Ver reservas del cliente"""
+    print_section("TEST 10: Ver Reservas Cliente")
+    
+    if not client_token:
+        log_test("Ver Reservas Cliente", False, "No hay token de cliente")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_token}"}
+        response = requests.get(f"{BASE_URL}/api/reservations/", headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            reservations = data.get('reservations', [])
+            log_test("Ver Reservas Cliente", True, f"Total reservas: {len(reservations)}")
+        else:
+            log_test("Ver Reservas Cliente", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Ver Reservas Cliente", False, str(e))
+
+
+def test_get_all_reservations_admin():
+    """Test 11: Ver todas las reservas (ADMIN)"""
+    print_section("TEST 11: Ver Todas las Reservas (ADMIN)")
+    
+    if not admin_token:
+        log_test("Ver Todas las Reservas", False, "No hay token de admin")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        response = requests.get(f"{BASE_URL}/api/reservations/", headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            reservations = data.get('reservations', [])
+            log_test("Ver Todas las Reservas", True, f"Total reservas: {len(reservations)}")
+        else:
+            log_test("Ver Todas las Reservas", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Ver Todas las Reservas", False, str(e))
+
+
+def test_get_reservation_detail():
+    """Test 12: Ver detalle de reserva"""
+    print_section("TEST 12: Ver Detalle de Reserva")
+    
+    if not test_reservation_id:
+        log_test("Ver Detalle de Reserva", False, "No hay ID de reserva de prueba")
+        return
+    
+    if not client_token:
+        log_test("Ver Detalle de Reserva", False, "No hay token de cliente")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_token}"}
+        response = requests.get(f"{BASE_URL}/api/reservations/{test_reservation_id}", headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            log_test(
+                "Ver Detalle de Reserva", 
+                True, 
+                f"Estado: {data.get('state')}, Total: ${data.get('total_amount')}"
+            )
+        else:
+            log_test("Ver Detalle de Reserva", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Ver Detalle de Reserva", False, str(e))
+
+
+def test_approve_reservation():
+    """Test 13: Aprobar reserva (CU-010 - ADMIN)"""
+    global test_reservation_id_for_reject
+    print_section("TEST 13: Aprobar Reserva (CU-010)")
+    
+    # Crear otra reserva para aprobar
+    if not client_token or not admin_token:
+        log_test("Aprobar Reserva", False, "Faltan tokens")
+        return
+    
+    try:
+        # Crear reserva
+        headers_client = {"Authorization": f"Bearer {client_token}"}
+        payload = {
+            "items": [
+                {
+                    "product_id": "6974f610f21dfdc1652bb4fd",
+                    "variant_id": "6974f610f21dfdc1652bb4ff",
+                    "quantity": 3,
+                    "unit_price": 22.50
+                }
+            ],
+            "delivery_address": "Heredia, Centro",
+            "contact_phone": "77778888"
+        }
+        response = requests.post(f"{BASE_URL}/api/reservations/", headers=headers_client, json=payload)
+        
+        if response.status_code != 201:
+            log_test("Aprobar Reserva - Crear", False, "No se pudo crear reserva")
+            return
+        
+        reservation_id = response.json().get('reservation', {}).get('_id')
+        test_reservation_id_for_reject = reservation_id
+        
+        # Aprobar reserva
+        headers_admin = {"Authorization": f"Bearer {admin_token}"}
+        approve_payload = {"admin_notes": "Reserva aprobada por test automatizado"}
+        response = requests.put(
+            f"{BASE_URL}/api/reservations/{reservation_id}/approve", 
+            headers=headers_admin, 
+            json=approve_payload
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            reservation = data.get('reservation', {})
+            log_test(
+                "Aprobar Reserva", 
+                reservation.get('state') == 'aprobada', 
+                f"Estado: {reservation.get('state')}"
+            )
+        else:
+            log_test("Aprobar Reserva", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Aprobar Reserva", False, str(e))
+
+
+def test_reject_reservation():
+    """Test 14: Rechazar reserva (CU-010 - ADMIN)"""
+    print_section("TEST 14: Rechazar Reserva (CU-010)")
+    
+    if not client_token or not admin_token:
+        log_test("Rechazar Reserva", False, "Faltan tokens")
+        return
+    
+    try:
+        # Crear reserva
+        headers_client = {"Authorization": f"Bearer {client_token}"}
+        payload = {
+            "items": [
+                {
+                    "product_id": "6974f610f21dfdc1652bb4fd",
+                    "variant_id": "6974f610f21dfdc1652bb500",
+                    "quantity": 2,
+                    "unit_price": 19.99
+                }
+            ],
+            "delivery_address": "Cartago, Centro",
+            "contact_phone": "66667777"
+        }
+        response = requests.post(f"{BASE_URL}/api/reservations/", headers=headers_client, json=payload)
+        
+        if response.status_code != 201:
+            log_test("Rechazar Reserva - Crear", False, "No se pudo crear reserva")
+            return
+        
+        reservation_id = response.json().get('reservation', {}).get('_id')
+        
+        # Rechazar reserva
+        headers_admin = {"Authorization": f"Bearer {admin_token}"}
+        reject_payload = {"admin_notes": "Reserva rechazada por test automatizado"}
+        response = requests.put(
+            f"{BASE_URL}/api/reservations/{reservation_id}/reject", 
+            headers=headers_admin, 
+            json=reject_payload
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            reservation = data.get('reservation', {})
+            log_test(
+                "Rechazar Reserva", 
+                reservation.get('state') == 'rechazada', 
+                f"Estado: {reservation.get('state')}"
+            )
+        else:
+            log_test("Rechazar Reserva", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Rechazar Reserva", False, str(e))
+
+
+def test_cancel_reservation():
+    """Test 15: Cancelar reserva (CU-009 - Cliente)"""
+    print_section("TEST 15: Cancelar Reserva (CU-009)")
+    
+    if not test_reservation_id or not client_token:
+        log_test("Cancelar Reserva", False, "Faltan datos")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_token}"}
+        response = requests.put(
+            f"{BASE_URL}/api/reservations/{test_reservation_id}/cancel", 
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            reservation = data.get('reservation', {})
+            log_test(
+                "Cancelar Reserva", 
+                reservation.get('state') == 'cancelada', 
+                f"Estado: {reservation.get('state')}"
+            )
+        else:
+            log_test("Cancelar Reserva", False, f"Status: {response.status_code}", response.text)
+    except Exception as e:
+        log_test("Cancelar Reserva", False, str(e))
+
+
+def test_unauthorized_access():
+    """Test 16: Acceso sin autenticación"""
+    print_section("TEST 16: Verificar Protección de Rutas")
+    
+    try:
+        response = requests.get(f"{BASE_URL}/api/users/profile")
+        unauthorized = response.status_code == 401
+        log_test(
+            "Protección sin Token", 
+            unauthorized, 
+            "Ruta protegida correctamente" if unauthorized else "Ruta sin protección"
+        )
+    except Exception as e:
+        log_test("Protección sin Token", False, str(e))
+
+
+def test_client_cannot_access_admin_routes():
+    """Test 17: Cliente no puede acceder a rutas de admin"""
+    print_section("TEST 17: Control de Permisos (RBAC)")
+    
+    if not client_token:
+        log_test("Control de Permisos", False, "No hay token de cliente")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {client_token}"}
+        response = requests.get(f"{BASE_URL}/api/users/", headers=headers)
+        forbidden = response.status_code == 403
+        log_test(
+            "Control de Permisos", 
+            forbidden, 
+            "RBAC funciona correctamente" if forbidden else "Cliente puede acceder a rutas de admin"
+        )
+    except Exception as e:
+        log_test("Control de Permisos", False, str(e))
+
+
+def print_summary():
+    """Imprime resumen de pruebas"""
+    print_section("RESUMEN DE PRUEBAS")
+    
+    total = len(test_results)
+    passed = sum(1 for r in test_results if r['success'])
+    failed = total - passed
+    success_rate = (passed / total * 100) if total > 0 else 0
+    
+    print(f"\nTotal de pruebas: {total}")
+    print(f"{Fore.GREEN}Exitosas: {passed}{Style.RESET_ALL}")
+    print(f"{Fore.RED}Fallidas: {failed}{Style.RESET_ALL}")
+    print(f"Tasa de éxito: {success_rate:.1f}%\n")
+    
+    if failed > 0:
+        print(f"{Fore.YELLOW}Pruebas Fallidas:{Style.RESET_ALL}")
+        for result in test_results:
+            if not result['success']:
+                print(f"  - {result['test']}: {result['message']}")
+    
+    # Guardar log
+    log_file = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with open(log_file, 'w', encoding='utf-8') as f:
+        json.dump(test_results, f, indent=2, ensure_ascii=False)
+    
+    print(f"\n{Fore.CYAN}Log guardado en: {log_file}{Style.RESET_ALL}")
+
+
+def main():
+    """Función principal"""
+    print(f"\n{Fore.MAGENTA}{'='*70}")
+    print("PRUEBAS AUTOMATIZADAS - BACKEND PISOS KERMY")
+    print(f"{'='*70}{Style.RESET_ALL}\n")
+    print(f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"URL Base: {BASE_URL}\n")
+    
+    # Ejecutar pruebas en orden
+    test_health_check()
+    test_login_client()
+    test_login_admin()
+    test_get_profile_client()
+    test_update_profile()
+    test_refresh_token()
+    test_logout()
+    test_get_users_admin()
+    test_get_user_by_id()
+    test_create_reservation()
+    test_get_reservations_client()
+    test_get_all_reservations_admin()
+    test_get_reservation_detail()
+    test_approve_reservation()
+    test_reject_reservation()
+    test_cancel_reservation()
+    test_unauthorized_access()
+    test_client_cannot_access_admin_routes()
+    
+    # Resumen
+    print_summary()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n\n{Fore.YELLOW}Pruebas interrumpidas por el usuario{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"\n{Fore.RED}Error fatal: {str(e)}{Style.RESET_ALL}")

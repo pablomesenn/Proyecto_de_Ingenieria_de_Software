@@ -48,3 +48,8 @@ gunicorn==21.2.0
 
 # Monitoreo y logging
 python-json-logger==2.0.7
+
+# Dependencias adicionales para CU-010 al CU-015
+
+# Nuevas dependencias necesarias:
+APScheduler>=3.10.4
