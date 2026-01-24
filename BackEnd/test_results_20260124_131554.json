@@ -1,0 +1,110 @@
+[
+  {
+    "test": "Health Check",
+    "success": true,
+    "message": "Service: Pisos Kermy API, Status: healthy",
+    "timestamp": "2026-01-24T13:15:18.817376"
+  },
+  {
+    "test": "Login Cliente",
+    "success": true,
+    "message": "Usuario: Juan Perez Test, Role: CLIENT",
+    "timestamp": "2026-01-24T13:15:21.015343"
+  },
+  {
+    "test": "Login Admin",
+    "success": true,
+    "message": "Usuario: Administrador Pisos Kermy, Role: ADMIN",
+    "timestamp": "2026-01-24T13:15:23.167993"
+  },
+  {
+    "test": "Ver Perfil Cliente",
+    "success": true,
+    "message": "Email: cliente1@example.com, Nombre: Juan Perez Test",
+    "timestamp": "2026-01-24T13:15:25.252463"
+  },
+  {
+    "test": "Actualizar Perfil",
+    "success": true,
+    "message": "Nuevo nombre: Juan Perez Test, Nuevo tel: 99998888",
+    "timestamp": "2026-01-24T13:15:27.340036"
+  },
+  {
+    "test": "Refrescar Token",
+    "success": true,
+    "message": "Nuevo access token: True, Nuevo refresh token: True",
+    "timestamp": "2026-01-24T13:15:29.426948"
+  },
+  {
+    "test": "Cerrar Sesión",
+    "success": true,
+    "message": "Token revocado correctamente",
+    "timestamp": "2026-01-24T13:15:35.771389"
+  },
+  {
+    "test": "Listar Usuarios",
+    "success": true,
+    "message": "Total usuarios: 4",
+    "timestamp": "2026-01-24T13:15:37.858520"
+  },
+  {
+    "test": "Obtener Usuario por ID",
+    "success": true,
+    "message": "Usuario: Juan Perez Test",
+    "timestamp": "2026-01-24T13:15:39.949628"
+  },
+  {
+    "test": "Crear Reserva",
+    "success": false,
+    "message": "Status: 400",
+    "timestamp": "2026-01-24T13:15:42.008329"
+  },
+  {
+    "test": "Ver Reservas Cliente",
+    "success": true,
+    "message": "Total reservas: 0",
+    "timestamp": "2026-01-24T13:15:44.123272"
+  },
+  {
+    "test": "Ver Todas las Reservas",
+    "success": true,
+    "message": "Total reservas: 0",
+    "timestamp": "2026-01-24T13:15:46.202429"
+  },
+  {
+    "test": "Ver Detalle de Reserva",
+    "success": false,
+    "message": "No hay ID de reserva de prueba",
+    "timestamp": "2026-01-24T13:15:46.203046"
+  },
+  {
+    "test": "Aprobar Reserva - Crear",
+    "success": false,
+    "message": "No se pudo crear reserva",
+    "timestamp": "2026-01-24T13:15:48.261447"
+  },
+  {
+    "test": "Rechazar Reserva - Crear",
+    "success": false,
+    "message": "No se pudo crear reserva",
+    "timestamp": "2026-01-24T13:15:50.302046"
+  },
+  {
+    "test": "Cancelar Reserva",
+    "success": false,
+    "message": "Faltan datos",
+    "timestamp": "2026-01-24T13:15:50.302584"
+  },
+  {
+    "test": "Protección sin Token",
+    "success": true,
+    "message": "Ruta protegida correctamente",
+    "timestamp": "2026-01-24T13:15:52.348585"
+  },
+  {
+    "test": "Control de Permisos",
+    "success": true,
+    "message": "RBAC funciona correctamente",
+    "timestamp": "2026-01-24T13:15:54.415013"
+  }
+]

@@ -37,6 +37,56 @@ def require_role(required_role):
     return decorator
 
 
+@reservations_bp.route('/', methods=['POST'])
+@jwt_required()
+def create_reservation():
+    """
+    Crea una nueva reserva (CU-007 - Cliente)
+    Solo clientes pueden crear reservas
+    """
+    try:
+        user_id = get_jwt_identity()
+        jwt_data = get_jwt()
+        user_role = jwt_data.get('role')
+        
+        # Solo clientes pueden crear reservas
+        if user_role != UserRole.CLIENT:
+            return jsonify({'error': 'Solo clientes pueden crear reservas'}), 403
+        
+        # Validar datos
+        schema = CreateReservationSchema()
+        data = schema.load(request.get_json())
+        
+        # Agregar user_id a los datos
+        data['user_id'] = user_id
+        
+        # Crear reserva
+        reservation = reservation_service.create_reservation(data)
+        
+        # Obtener usuario para notificacion
+        user = user_service.get_user_by_id(user_id)
+        
+        # Enviar notificacion de nueva reserva
+        notification_service.send_reservation_created(user, reservation)
+        
+        res_dict = reservation.to_dict()
+        res_dict['_id'] = str(res_dict['_id'])
+        res_dict['user_id'] = str(res_dict['user_id'])
+        
+        return jsonify({
+            'message': 'Reserva creada exitosamente',
+            'reservation': res_dict
+        }), 201
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Datos invalidos', 'details': e.messages}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error creando reserva: {str(e)}")
+        return jsonify({'error': 'Error interno del servidor'}), 500 
+
+
 @reservations_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_reservations():
