@@ -25,7 +25,6 @@ if __name__ == '__main__':
     🔧 Modo: {'Desarrollo' if debug else 'Producción'}
     📝 Documentación: http://{host}:{port}/
     💚 Health Check: http://{host}:{port}/health
-    
     """)
     
     # Ejecutar la aplicación
