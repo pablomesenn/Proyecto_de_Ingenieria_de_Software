@@ -194,3 +194,31 @@ class RedisHelper:
         except Exception as e:
             current_app.logger.error(f"Error al verificar existencia en Redis: {str(e)}")
             return False
+
+
+def get_db():
+    """
+    Obtiene una conexión directa a MongoDB usando PyMongo
+    Útil para scripts y operaciones que no usan MongoEngine
+    """
+    from pymongo import MongoClient
+    from flask import current_app
+    
+    try:
+        mongodb_settings = current_app.config['MONGODB_SETTINGS']
+        client = MongoClient(mongodb_settings['host'])
+        db_name = mongodb_settings.get('db', 'pisos_kermy_db')
+        return client[db_name]
+    except:
+        # Fallback si no hay app context
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        
+        mongodb_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/pisos_kermy_db')
+        client = MongoClient(mongodb_uri)
+        
+        # Obtener nombre de DB del .env
+        db_name = os.getenv('MONGODB_DB', 'pisos_kermy_db')
+        
+        return client[db_name]

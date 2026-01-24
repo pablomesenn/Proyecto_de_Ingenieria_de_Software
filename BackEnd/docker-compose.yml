@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: pisos_kermy_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: pisos_kermy_db
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - pisos_kermy_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: pisos_kermy_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - pisos_kermy_network
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: pisos_kermy_mongo_express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
+      ME_CONFIG_BASICAUTH: false
+    depends_on:
+      - mongodb
+    networks:
+      - pisos_kermy_network
+    profiles:
+      - dev
+
+volumes:
+  mongodb_data:
+
+networks:
+  pisos_kermy_network:
+    driver: bridge
