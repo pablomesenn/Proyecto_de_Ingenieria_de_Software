@@ -5,6 +5,8 @@ Casos de Uso:
 - CU-007: Mover de wishlist a reserva
 - CU-008: Crear reserva directa
 - CU-009: Cancelar reserva
+- CU-010: Gestionar reservas (ADMIN)
+- CU-011: Expiración automática
 """
 
 from datetime import datetime
@@ -14,6 +16,9 @@ from app.repositories.notification_repository import NotificationRepository
 from app.services.notification_service import NotificationService
 from app.constants.states import ReservationState
 from app.models.reservation import Reservation
+from app.models.wishlist import Wishlist
+from app.models.product import Product
+from app.models.inventory import Inventory
 from bson import ObjectId
 import logging
 
@@ -58,6 +63,97 @@ class ReservationService:
             )
 
         return reservation
+
+    @staticmethod
+    def create_from_wishlist(user_id, item_quantities=None):
+            """
+            Crea una reserva desde la wishlist (CU-007)
+
+            Args:
+                user_id: ID del usuario
+                item_quantities: Dict opcional con cantidades personalizadas
+                                {producto_id: {variante_index: cantidad}}
+
+            Returns:
+                dict: Reserva creada
+            """
+            from app.models.user import User
+
+            # Obtener wishlist
+            try:
+                user = User.objects.get(id=user_id)
+                wishlist = Wishlist.objects.get(usuario_id=user)
+            except Wishlist.DoesNotExist:
+                raise ValueError("Wishlist vacía o no encontrada")
+            except User.DoesNotExist:
+                raise ValueError("Usuario no encontrado")
+
+            if wishlist.get_total_items() == 0:
+                raise ValueError("La wishlist está vacía")
+
+            # Validar disponibilidad de todos los ítems
+            reservation_items = []
+            inventory_repo = InventoryRepository()
+
+            for item in wishlist.items:
+                producto_id = str(item.producto_id.id)
+                variante_index = item.variante_index
+
+                # Usar cantidad personalizada si se proporciona, sino usar de wishlist
+                if item_quantities and producto_id in item_quantities:
+                    cantidad = item_quantities[producto_id].get(variante_index, item.cantidad)
+                else:
+                    cantidad = item.cantidad
+
+                # Buscar variante e inventario
+                try:
+                    inventory = Inventory.objects.get(
+                        producto_id=item.producto_id,
+                        variante_index=variante_index
+                    )
+
+                    variant_id = str(inventory.id)
+
+                except Inventory.DoesNotExist:
+                    raise ValueError(f"Inventario no encontrado para {item.producto_id.nombre}")
+
+                # Validar disponibilidad
+                if not inventory_repo.validate_availability(variant_id, cantidad):
+                    raise ValueError(
+                        f"Stock insuficiente para {item.producto_id.nombre}. "
+                        f"Disponible: {inventory.get_disponibilidad()}, Solicitado: {cantidad}"
+                    )
+
+                # Preparar item para reserva
+                variante = item.producto_id.variantes[variante_index]
+                reservation_items.append({
+                    'variant_id': variant_id,
+                    'quantity': cantidad,
+                    'product_name': item.producto_id.nombre,
+                    'variant_size': f"{variante.tamano_pieza} {variante.unidad}",
+                    'price': 0.0  # El precio se puede agregar después si es necesario
+                })
+
+            if not reservation_items:
+                raise ValueError("No hay ítems válidos para reservar")
+
+            # Crear la reserva
+            reservation_service = ReservationService()
+            reservation = reservation_service.create_reservation({
+                'user_id': user_id,
+                'items': reservation_items,
+                'notes': 'Creada desde wishlist'
+            })
+
+            # Limpiar wishlist después de crear reserva exitosamente
+            wishlist.clear()
+
+            # Convertir a dict para respuesta
+            res_dict = reservation.to_dict()
+            res_dict['_id'] = str(res_dict['_id'])
+            res_dict['user_id'] = str(res_dict['user_id'])
+
+            return res_dict
 
     def approve_reservation(self, reservation_id, admin_id, admin_notes=None):
         """Aprueba una reserva (CU-010)"""
