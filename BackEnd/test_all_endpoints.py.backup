@@ -269,7 +269,7 @@ def test_get_user_by_id():
     
     try:
         # ID del cliente1 (del seed)
-        user_id = "697548b735f3f2d61159494c"
+        user_id = "6974f610f21dfdc1652bb4fb"
         headers = {"Authorization": f"Bearer {admin_token}"}
         response = requests.get(f"{BASE_URL}/api/users/{user_id}", headers=headers)
         
@@ -297,7 +297,7 @@ def test_create_reservation():
         payload = {
             "items": [
                 {
-                    "variant_id": "697548b735f3f2d61159494f",
+                    "variant_id": "6974f610f21dfdc1652bb4fe",
                     "quantity": 5,
                     "price": 25.99
                 }
@@ -410,7 +410,7 @@ def test_approve_reservation():
         payload = {
             "items": [
                 {
-                    "variant_id": "697548b735f3f2d611594950",
+                    "variant_id": "6974f610f21dfdc1652bb4ff",
                     "quantity": 3,
                     "price": 22.50
                 }
@@ -464,7 +464,7 @@ def test_reject_reservation():
         payload = {
             "items": [
                 {
-                    "variant_id": "697548b735f3f2d61159494f",  # Usar mismo que test 9
+                    "variant_id": "6974f610f21dfdc1652bb4fe",  # Usar mismo que test 9
                     "quantity": 2,
                     "price": 19.99
                 }
@@ -545,7 +545,7 @@ def test_admin_force_cancel():
         payload = {
             "items": [
                 {
-                    "variant_id": "697548b735f3f2d611594950",  # Usar mismo que test 13
+                    "variant_id": "6974f610f21dfdc1652bb4ff",  # Usar mismo que test 13
                     "quantity": 1,
                     "price": 15.00
                 }

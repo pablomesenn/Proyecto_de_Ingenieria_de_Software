@@ -217,5 +217,8 @@ def get_db():
         
         mongodb_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/pisos_kermy_db')
         client = MongoClient(mongodb_uri)
-        db_name = mongodb_uri.split('/')[-1]
+        
+        # Obtener nombre de DB del .env
+        db_name = os.getenv('MONGODB_DB', 'pisos_kermy_db')
+        
         return client[db_name]

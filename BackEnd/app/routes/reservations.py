@@ -57,11 +57,12 @@ def create_reservation():
         schema = CreateReservationSchema()
         data = schema.load(request.get_json())
         
-        # Agregar user_id a los datos
-        data['user_id'] = user_id
-        
         # Crear reserva
-        reservation = reservation_service.create_reservation(data)
+        reservation = reservation_service.create_reservation(
+            user_id=user_id,
+            items=data['items'],
+            notes=data.get('notes')
+        )
         
         # Obtener usuario para notificacion
         user = user_service.get_user_by_id(user_id)
