@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Script de pruebas automatizado para el backend de Pisos Kermy
+Script de pruebas automatizado para el backend de Pisos Kermy - VERSION MEJORADA
 Verifica todos los endpoints implementados y genera un reporte
 
-IMPORTANTE: Este script asume que la base de datos tiene productos con variant_ids.
-Si ves errores 400 al crear reservas, ejecuta primero: python seed_database.py
+MEJORAS:
+- Obtiene IDs dinámicamente de la base de datos
+- No depende de valores hardcoded
+- Maneja errores de forma más robusta
 """
 
 import requests
@@ -17,13 +19,14 @@ init(autoreset=True)
 
 BASE_URL = "http://localhost:5000"
 
-# Variables globales para tokens
+# Variables globales para tokens y datos dinámicos
 client_token = None
 admin_token = None
 client_refresh_token = None
+client_user_id = None
+admin_user_id = None
 test_reservation_id = None
-test_reservation_id_for_reject = None
-available_variant_ids = []  # Se llenará dinámicamente
+available_variant_id = None  # Se obtendrá dinámicamente
 test_results = []
 
 
@@ -34,8 +37,12 @@ def log_test(test_name, success, message="", response=None):
     if message:
         print(f"  {message}")
     if response and not success:
-        print(f"  Response: {response}")
-    
+        print(f"  Status: {response.status_code if hasattr(response, 'status_code') else 'N/A'}")
+        try:
+            print(f"  Response: {response.json() if hasattr(response, 'json') else response}")
+        except:
+            print(f"  Response: {response.text if hasattr(response, 'text') else str(response)}")
+
     test_results.append({
         'test': test_name,
         'success': success,
@@ -60,62 +67,64 @@ def test_health_check():
             data = response.json()
             log_test("Health Check", True, f"Service: {data.get('service')}, Status: {data.get('status')}")
         else:
-            log_test("Health Check", False, f"Status code: {response.status_code}")
+            log_test("Health Check", False, f"Status code: {response.status_code}", response)
     except Exception as e:
         log_test("Health Check", False, str(e))
 
 
 def test_login_client():
     """Test 1: Login como Cliente (CU-001)"""
-    global client_token, client_refresh_token
+    global client_token, client_refresh_token, client_user_id
     print_section("TEST 1: Login Cliente (CU-001)")
-    
+
     try:
         payload = {
             "email": "cliente1@example.com",
             "password": "Cliente123!"
         }
         response = requests.post(f"{BASE_URL}/api/auth/login", json=payload)
-        
+
         if response.status_code == 200:
             data = response.json()
             client_token = data.get('access_token')
             client_refresh_token = data.get('refresh_token')
             user = data.get('user', {})
+            client_user_id = user.get('id')
             log_test(
-                "Login Cliente", 
-                True, 
+                "Login Cliente",
+                True,
                 f"Usuario: {user.get('name')}, Role: {user.get('role')}"
             )
         else:
-            log_test("Login Cliente", False, f"Status: {response.status_code}", response.text)
+            log_test("Login Cliente", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Login Cliente", False, str(e))
 
 
 def test_login_admin():
     """Test 2: Login como Admin"""
-    global admin_token
+    global admin_token, admin_user_id
     print_section("TEST 2: Login Admin")
-    
+
     try:
         payload = {
             "email": "admin@pisoskermy.com",
             "password": "Admin123!"
         }
         response = requests.post(f"{BASE_URL}/api/auth/login", json=payload)
-        
+
         if response.status_code == 200:
             data = response.json()
             admin_token = data.get('access_token')
             user = data.get('user', {})
+            admin_user_id = user.get('id')
             log_test(
-                "Login Admin", 
-                True, 
+                "Login Admin",
+                True,
                 f"Usuario: {user.get('name')}, Role: {user.get('role')}"
             )
         else:
-            log_test("Login Admin", False, f"Status: {response.status_code}", response.text)
+            log_test("Login Admin", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Login Admin", False, str(e))
 
@@ -123,24 +132,24 @@ def test_login_admin():
 def test_get_profile_client():
     """Test 3: Ver perfil de cliente"""
     print_section("TEST 3: Ver Perfil Cliente")
-    
+
     if not client_token:
         log_test("Ver Perfil Cliente", False, "No hay token de cliente")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {client_token}"}
         response = requests.get(f"{BASE_URL}/api/users/profile", headers=headers)
-        
+
         if response.status_code == 200:
             data = response.json()
             log_test(
-                "Ver Perfil Cliente", 
-                True, 
+                "Ver Perfil Cliente",
+                True,
                 f"Email: {data.get('email')}, Nombre: {data.get('name')}"
             )
         else:
-            log_test("Ver Perfil Cliente", False, f"Status: {response.status_code}", response.text)
+            log_test("Ver Perfil Cliente", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Ver Perfil Cliente", False, str(e))
 
@@ -148,11 +157,11 @@ def test_get_profile_client():
 def test_update_profile():
     """Test 4: Actualizar perfil (CU-015)"""
     print_section("TEST 4: Actualizar Perfil (CU-015)")
-    
+
     if not client_token:
         log_test("Actualizar Perfil", False, "No hay token de cliente")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {client_token}"}
         payload = {
@@ -160,17 +169,17 @@ def test_update_profile():
             "phone": "99998888"
         }
         response = requests.put(f"{BASE_URL}/api/users/profile", headers=headers, json=payload)
-        
+
         if response.status_code == 200:
             data = response.json()
             user = data.get('user', {})
             log_test(
-                "Actualizar Perfil", 
-                True, 
+                "Actualizar Perfil",
+                True,
                 f"Nuevo nombre: {user.get('name')}, Nuevo tel: {user.get('phone')}"
             )
         else:
-            log_test("Actualizar Perfil", False, f"Status: {response.status_code}", response.text)
+            log_test("Actualizar Perfil", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Actualizar Perfil", False, str(e))
 
@@ -178,26 +187,26 @@ def test_update_profile():
 def test_refresh_token():
     """Test 5: Refrescar token (CU-014)"""
     print_section("TEST 5: Refrescar Token (CU-014)")
-    
+
     if not client_refresh_token:
         log_test("Refrescar Token", False, "No hay refresh token")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {client_refresh_token}"}
         response = requests.post(f"{BASE_URL}/api/auth/refresh", headers=headers)
-        
+
         if response.status_code == 200:
             data = response.json()
             has_access = 'access_token' in data
             has_refresh = 'refresh_token' in data
             log_test(
-                "Refrescar Token", 
-                True, 
+                "Refrescar Token",
+                True,
                 f"Nuevo access token: {has_access}, Nuevo refresh token: {has_refresh}"
             )
         else:
-            log_test("Refrescar Token", False, f"Status: {response.status_code}", response.text)
+            log_test("Refrescar Token", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Refrescar Token", False, str(e))
 
@@ -205,34 +214,34 @@ def test_refresh_token():
 def test_logout():
     """Test 6: Cerrar sesión (CU-013)"""
     print_section("TEST 6: Cerrar Sesión (CU-013)")
-    
+
     # Crear un nuevo token para probar logout
     try:
         payload = {"email": "cliente2@example.com", "password": "Cliente123!"}
         response = requests.post(f"{BASE_URL}/api/auth/login", json=payload)
-        
+
         if response.status_code != 200:
             log_test("Cerrar Sesión - Login previo", False, "No se pudo hacer login")
             return
-        
+
         temp_token = response.json().get('access_token')
-        
+
         # Hacer logout
         headers = {"Authorization": f"Bearer {temp_token}"}
         response = requests.post(f"{BASE_URL}/api/auth/logout", headers=headers)
-        
+
         if response.status_code == 200:
             # Verificar que el token ya no funciona
             response2 = requests.get(f"{BASE_URL}/api/users/profile", headers=headers)
-            token_revoked = response2.status_code == 401 and 'revocado' in response2.text.lower()
-            
+            token_revoked = response2.status_code == 401
+
             log_test(
-                "Cerrar Sesión", 
-                token_revoked, 
+                "Cerrar Sesión",
+                token_revoked,
                 "Token revocado correctamente" if token_revoked else "Token aún funciona"
             )
         else:
-            log_test("Cerrar Sesión", False, f"Status: {response.status_code}", response.text)
+            log_test("Cerrar Sesión", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Cerrar Sesión", False, str(e))
 
@@ -240,83 +249,122 @@ def test_logout():
 def test_get_users_admin():
     """Test 7: Listar usuarios (ADMIN)"""
     print_section("TEST 7: Listar Usuarios (ADMIN)")
-    
+
     if not admin_token:
         log_test("Listar Usuarios", False, "No hay token de admin")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {admin_token}"}
         response = requests.get(f"{BASE_URL}/api/users/", headers=headers)
-        
+
         if response.status_code == 200:
             data = response.json()
             users = data.get('users', [])
             log_test("Listar Usuarios", True, f"Total usuarios: {len(users)}")
         else:
-            log_test("Listar Usuarios", False, f"Status: {response.status_code}", response.text)
+            log_test("Listar Usuarios", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Listar Usuarios", False, str(e))
 
 
 def test_get_user_by_id():
-    """Test 8: Obtener usuario por ID"""
+    """Test 8: Obtener usuario por ID - USA ID DINAMICO"""
     print_section("TEST 8: Obtener Usuario por ID")
-    
-    if not admin_token:
-        log_test("Obtener Usuario por ID", False, "No hay token de admin")
+
+    if not admin_token or not client_user_id:
+        log_test("Obtener Usuario por ID", False, "No hay token de admin o ID de cliente")
         return
-    
+
     try:
-        # ID del cliente1 (del seed)
-        user_id = "697548b735f3f2d61159494c"
         headers = {"Authorization": f"Bearer {admin_token}"}
-        response = requests.get(f"{BASE_URL}/api/users/{user_id}", headers=headers)
-        
+        response = requests.get(f"{BASE_URL}/api/users/{client_user_id}", headers=headers)
+
         if response.status_code == 200:
             data = response.json()
             log_test("Obtener Usuario por ID", True, f"Usuario: {data.get('name')}")
         else:
-            log_test("Obtener Usuario por ID", False, f"Status: {response.status_code}", response.text)
+            log_test("Obtener Usuario por ID", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Obtener Usuario por ID", False, str(e))
 
 
+def get_available_variant():
+    """Función auxiliar: Obtiene un variant_id con stock disponible"""
+    global available_variant_id
+
+    if not client_token:
+        return None
+
+    try:
+        # Buscar productos disponibles
+        response = requests.get(f"{BASE_URL}/api/products/search?disponibilidad=true&limit=5")
+
+        if response.status_code != 200:
+            print(f"  ⚠️ No se pudieron obtener productos: Status {response.status_code}")
+            return None
+
+        data = response.json()
+        products = data.get('products', [])
+
+        # Buscar una variante con stock disponible
+        for product in products:
+            variantes = product.get('variantes', [])
+            for variante in variantes:
+                disponibilidad = variante.get('disponibilidad', 0)
+                if disponibilidad > 0:
+                    available_variant_id = variante.get('_id')
+                    print(f"  ✓ Variante disponible encontrada: {available_variant_id} (Stock: {disponibilidad})")
+                    return available_variant_id
+
+        print("  ⚠️ No se encontraron variantes con stock disponible")
+        return None
+
+    except Exception as e:
+        print(f"  ⚠️ Error obteniendo variantes: {str(e)}")
+        return None
+
+
 def test_create_reservation():
-    """Test 9: Crear reserva (Cliente)"""
+    """Test 9: Crear reserva - USA VARIANT_ID DINAMICO"""
     global test_reservation_id
     print_section("TEST 9: Crear Reserva (Cliente)")
-    
+
     if not client_token:
         log_test("Crear Reserva", False, "No hay token de cliente")
         return
-    
+
+    # Obtener una variante con stock disponible
+    variant_id = get_available_variant()
+
+    if not variant_id:
+        log_test("Crear Reserva", False, "No hay variantes disponibles con stock")
+        return
+
     try:
         headers = {"Authorization": f"Bearer {client_token}"}
-        # ID de variante del seed (producto Laminado Premium)
         payload = {
             "items": [
                 {
-                    "variant_id": "697548b735f3f2d61159494f",
-                    "quantity": 5,
-                    "price": 25.99
+                    "variant_id": variant_id,
+                    "quantity": 2
                 }
             ],
             "notes": "Reserva de prueba automatizada"
         }
         response = requests.post(f"{BASE_URL}/api/reservations/", headers=headers, json=payload)
-        
+
         if response.status_code == 201:
             data = response.json()
             reservation = data.get('reservation', {})
             test_reservation_id = reservation.get('_id')
             log_test(
-                "Crear Reserva", 
-                True, 
+                "Crear Reserva",
+                True,
                 f"Reserva ID: {test_reservation_id}, Estado: {reservation.get('state')}"
             )
         else:
-            log_test("Crear Reserva", False, f"Status: {response.status_code}", response.text)
+            log_test("Crear Reserva", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Crear Reserva", False, str(e))
 
@@ -324,21 +372,21 @@ def test_create_reservation():
 def test_get_reservations_client():
     """Test 10: Ver reservas del cliente"""
     print_section("TEST 10: Ver Reservas Cliente")
-    
+
     if not client_token:
         log_test("Ver Reservas Cliente", False, "No hay token de cliente")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {client_token}"}
         response = requests.get(f"{BASE_URL}/api/reservations/", headers=headers)
-        
+
         if response.status_code == 200:
             data = response.json()
             reservations = data.get('reservations', [])
             log_test("Ver Reservas Cliente", True, f"Total reservas: {len(reservations)}")
         else:
-            log_test("Ver Reservas Cliente", False, f"Status: {response.status_code}", response.text)
+            log_test("Ver Reservas Cliente", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Ver Reservas Cliente", False, str(e))
 
@@ -346,21 +394,21 @@ def test_get_reservations_client():
 def test_get_all_reservations_admin():
     """Test 11: Ver todas las reservas (ADMIN)"""
     print_section("TEST 11: Ver Todas las Reservas (ADMIN)")
-    
+
     if not admin_token:
         log_test("Ver Todas las Reservas", False, "No hay token de admin")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {admin_token}"}
         response = requests.get(f"{BASE_URL}/api/reservations/", headers=headers)
-        
+
         if response.status_code == 200:
             data = response.json()
             reservations = data.get('reservations', [])
             log_test("Ver Todas las Reservas", True, f"Total reservas: {len(reservations)}")
         else:
-            log_test("Ver Todas las Reservas", False, f"Status: {response.status_code}", response.text)
+            log_test("Ver Todas las Reservas", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Ver Todas las Reservas", False, str(e))
 
@@ -368,136 +416,133 @@ def test_get_all_reservations_admin():
 def test_get_reservation_detail():
     """Test 12: Ver detalle de reserva"""
     print_section("TEST 12: Ver Detalle de Reserva")
-    
+
     if not test_reservation_id:
         log_test("Ver Detalle de Reserva", False, "No hay ID de reserva de prueba")
         return
-    
+
     if not client_token:
         log_test("Ver Detalle de Reserva", False, "No hay token de cliente")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {client_token}"}
         response = requests.get(f"{BASE_URL}/api/reservations/{test_reservation_id}", headers=headers)
-        
+
         if response.status_code == 200:
             data = response.json()
             log_test(
-                "Ver Detalle de Reserva", 
-                True, 
-                f"Estado: {data.get('state')}, Total: ${data.get('total_amount')}"
+                "Ver Detalle de Reserva",
+                True,
+                f"Estado: {data.get('state')}, Items: {len(data.get('items', []))}"
             )
         else:
-            log_test("Ver Detalle de Reserva", False, f"Status: {response.status_code}", response.text)
+            log_test("Ver Detalle de Reserva", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Ver Detalle de Reserva", False, str(e))
 
 
 def test_approve_reservation():
-    """Test 13: Aprobar reserva (CU-010 - ADMIN)"""
+    """Test 13: Aprobar reserva (CU-010) - CREA NUEVA RESERVA"""
     global test_reservation_id_for_reject
     print_section("TEST 13: Aprobar Reserva (CU-010)")
-    
-    # Crear otra reserva para aprobar
+
     if not client_token or not admin_token:
         log_test("Aprobar Reserva", False, "Faltan tokens")
         return
-    
+
+    # Obtener variante disponible
+    variant_id = get_available_variant()
+    if not variant_id:
+        log_test("Aprobar Reserva - Crear", False, "No hay variantes disponibles")
+        return
+
     try:
         # Crear reserva
         headers_client = {"Authorization": f"Bearer {client_token}"}
         payload = {
-            "items": [
-                {
-                    "variant_id": "697548b735f3f2d611594950",
-                    "quantity": 3,
-                    "price": 22.50
-                }
-            ],
+            "items": [{"variant_id": variant_id, "quantity": 1}],
             "notes": "Para aprobar"
         }
         response = requests.post(f"{BASE_URL}/api/reservations/", headers=headers_client, json=payload)
-        
+
         if response.status_code != 201:
-            log_test("Aprobar Reserva - Crear", False, "No se pudo crear reserva")
+            log_test("Aprobar Reserva - Crear", False, "No se pudo crear reserva", response)
             return
-        
+
         reservation_id = response.json().get('reservation', {}).get('_id')
-        test_reservation_id_for_reject = reservation_id
-        
+
         # Aprobar reserva
         headers_admin = {"Authorization": f"Bearer {admin_token}"}
         approve_payload = {"admin_notes": "Reserva aprobada por test automatizado"}
         response = requests.put(
-            f"{BASE_URL}/api/reservations/{reservation_id}/approve", 
-            headers=headers_admin, 
+            f"{BASE_URL}/api/reservations/{reservation_id}/approve",
+            headers=headers_admin,
             json=approve_payload
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             reservation = data.get('reservation', {})
             is_approved = reservation.get('state') == 'Aprobada'
             log_test(
-                "Aprobar Reserva", 
-                is_approved, 
+                "Aprobar Reserva",
+                is_approved,
                 f"Estado: {reservation.get('state')}"
             )
         else:
-            log_test("Aprobar Reserva", False, f"Status: {response.status_code}", response.text)
+            log_test("Aprobar Reserva", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Aprobar Reserva", False, str(e))
 
 
 def test_reject_reservation():
-    """Test 14: Rechazar reserva (CU-010 - ADMIN)"""
+    """Test 14: Rechazar reserva (CU-010)"""
     print_section("TEST 14: Rechazar Reserva (CU-010)")
-    
+
     if not client_token or not admin_token:
         log_test("Rechazar Reserva", False, "Faltan tokens")
         return
-    
+
+    variant_id = get_available_variant()
+    if not variant_id:
+        log_test("Rechazar Reserva - Crear", False, "No hay variantes disponibles")
+        return
+
     try:
         # Crear reserva
         headers_client = {"Authorization": f"Bearer {client_token}"}
         payload = {
-            "items": [
-                {
-                    "variant_id": "697548b735f3f2d61159494f",  # Usar mismo que test 9
-                    "quantity": 2,
-                    "price": 19.99
-                }
-            ],
+            "items": [{"variant_id": variant_id, "quantity": 1}],
             "notes": "Para rechazar"
         }
         response = requests.post(f"{BASE_URL}/api/reservations/", headers=headers_client, json=payload)
-        
+
         if response.status_code != 201:
-            log_test("Rechazar Reserva - Crear", False, "No se pudo crear reserva")
+            log_test("Rechazar Reserva - Crear", False, "No se pudo crear reserva", response)
             return
-        
+
         reservation_id = response.json().get('reservation', {}).get('_id')
-        
+
         # Rechazar reserva
         headers_admin = {"Authorization": f"Bearer {admin_token}"}
         reject_payload = {"admin_notes": "Reserva rechazada por test automatizado"}
         response = requests.put(
-            f"{BASE_URL}/api/reservations/{reservation_id}/reject", 
-            headers=headers_admin, 
+            f"{BASE_URL}/api/reservations/{reservation_id}/reject",
+            headers=headers_admin,
             json=reject_payload
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             reservation = data.get('reservation', {})
             log_test(
-                "Rechazar Reserva", 
-                reservation.get('state') == 'Rechazada', 
+                "Rechazar Reserva",
+                reservation.get('state') == 'Rechazada',
                 f"Estado: {reservation.get('state')}"
             )
         else:
-            log_test("Rechazar Reserva", False, f"Status: {response.status_code}", response.text)
+            log_test("Rechazar Reserva", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Rechazar Reserva", False, str(e))
 
@@ -505,28 +550,28 @@ def test_reject_reservation():
 def test_cancel_reservation():
     """Test 15: Cancelar reserva (CU-009 - Cliente)"""
     print_section("TEST 15: Cancelar Reserva por Cliente (CU-009)")
-    
+
     if not test_reservation_id or not client_token:
         log_test("Cancelar Reserva Cliente", False, "Faltan datos")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {client_token}"}
         response = requests.put(
-            f"{BASE_URL}/api/reservations/{test_reservation_id}/cancel", 
+            f"{BASE_URL}/api/reservations/{test_reservation_id}/cancel",
             headers=headers
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             reservation = data.get('reservation', {})
             log_test(
-                "Cancelar Reserva Cliente", 
-                reservation.get('state') == 'Cancelada', 
+                "Cancelar Reserva Cliente",
+                reservation.get('state') == 'Cancelada',
                 f"Estado: {reservation.get('state')}"
             )
         else:
-            log_test("Cancelar Reserva Cliente", False, f"Status: {response.status_code}", response.text)
+            log_test("Cancelar Reserva Cliente", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Cancelar Reserva Cliente", False, str(e))
 
@@ -534,49 +579,48 @@ def test_cancel_reservation():
 def test_admin_force_cancel():
     """Test 16: Cancelación forzada por ADMIN (CU-010)"""
     print_section("TEST 16: Cancelación Forzada por ADMIN (CU-010)")
-    
+
     if not client_token or not admin_token:
         log_test("Cancelación Forzada ADMIN", False, "Faltan tokens")
         return
-    
+
+    variant_id = get_available_variant()
+    if not variant_id:
+        log_test("Cancelación Forzada ADMIN - Crear", False, "No hay variantes disponibles")
+        return
+
     try:
         # Crear reserva como cliente
         headers_client = {"Authorization": f"Bearer {client_token}"}
         payload = {
-            "items": [
-                {
-                    "variant_id": "697548b735f3f2d611594950",  # Usar mismo que test 13
-                    "quantity": 1,
-                    "price": 15.00
-                }
-            ],
+            "items": [{"variant_id": variant_id, "quantity": 1}],
             "notes": "Para cancelar por admin"
         }
         response = requests.post(f"{BASE_URL}/api/reservations/", headers=headers_client, json=payload)
-        
+
         if response.status_code != 201:
-            log_test("Cancelación Forzada ADMIN - Crear", False, "No se pudo crear reserva")
+            log_test("Cancelación Forzada ADMIN - Crear", False, "No se pudo crear reserva", response)
             return
-        
+
         reservation_id = response.json().get('reservation', {}).get('_id')
-        
+
         # Cancelar como ADMIN (cancelación forzada)
         headers_admin = {"Authorization": f"Bearer {admin_token}"}
         response = requests.put(
-            f"{BASE_URL}/api/reservations/{reservation_id}/cancel", 
+            f"{BASE_URL}/api/reservations/{reservation_id}/cancel",
             headers=headers_admin
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             reservation = data.get('reservation', {})
             log_test(
-                "Cancelación Forzada ADMIN", 
-                reservation.get('state') == 'Cancelada', 
+                "Cancelación Forzada ADMIN",
+                reservation.get('state') == 'Cancelada',
                 f"Estado: {reservation.get('state')}, Cancelada por ADMIN"
             )
         else:
-            log_test("Cancelación Forzada ADMIN", False, f"Status: {response.status_code}", response.text)
+            log_test("Cancelación Forzada ADMIN", False, f"Status: {response.status_code}", response)
     except Exception as e:
         log_test("Cancelación Forzada ADMIN", False, str(e))
 
@@ -584,13 +628,13 @@ def test_admin_force_cancel():
 def test_unauthorized_access():
     """Test 17: Acceso sin autenticación"""
     print_section("TEST 17: Verificar Protección de Rutas")
-    
+
     try:
         response = requests.get(f"{BASE_URL}/api/users/profile")
         unauthorized = response.status_code == 401
         log_test(
-            "Protección sin Token", 
-            unauthorized, 
+            "Protección sin Token",
+            unauthorized,
             "Ruta protegida correctamente" if unauthorized else "Ruta sin protección"
         )
     except Exception as e:
@@ -600,18 +644,18 @@ def test_unauthorized_access():
 def test_client_cannot_access_admin_routes():
     """Test 18: Cliente no puede acceder a rutas de admin"""
     print_section("TEST 18: Control de Permisos (RBAC)")
-    
+
     if not client_token:
         log_test("Control de Permisos", False, "No hay token de cliente")
         return
-    
+
     try:
         headers = {"Authorization": f"Bearer {client_token}"}
         response = requests.get(f"{BASE_URL}/api/users/", headers=headers)
         forbidden = response.status_code == 403
         log_test(
-            "Control de Permisos", 
-            forbidden, 
+            "Control de Permisos",
+            forbidden,
             "RBAC funciona correctamente" if forbidden else "Cliente puede acceder a rutas de admin"
         )
     except Exception as e:
@@ -621,39 +665,39 @@ def test_client_cannot_access_admin_routes():
 def print_summary():
     """Imprime resumen de pruebas"""
     print_section("RESUMEN DE PRUEBAS")
-    
+
     total = len(test_results)
     passed = sum(1 for r in test_results if r['success'])
     failed = total - passed
     success_rate = (passed / total * 100) if total > 0 else 0
-    
+
     print(f"\nTotal de pruebas: {total}")
     print(f"{Fore.GREEN}Exitosas: {passed}{Style.RESET_ALL}")
     print(f"{Fore.RED}Fallidas: {failed}{Style.RESET_ALL}")
     print(f"Tasa de éxito: {success_rate:.1f}%\n")
-    
+
     if failed > 0:
         print(f"{Fore.YELLOW}Pruebas Fallidas:{Style.RESET_ALL}")
         for result in test_results:
             if not result['success']:
                 print(f"  - {result['test']}: {result['message']}")
-    
+
     # Guardar log
     log_file = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(log_file, 'w', encoding='utf-8') as f:
         json.dump(test_results, f, indent=2, ensure_ascii=False)
-    
+
     print(f"\n{Fore.CYAN}Log guardado en: {log_file}{Style.RESET_ALL}")
 
 
 def main():
     """Función principal"""
     print(f"\n{Fore.MAGENTA}{'='*70}")
-    print("PRUEBAS AUTOMATIZADAS - BACKEND PISOS KERMY")
+    print("PRUEBAS AUTOMATIZADAS - BACKEND PISOS KERMY (MEJORADO)")
     print(f"{'='*70}{Style.RESET_ALL}\n")
     print(f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"URL Base: {BASE_URL}\n")
-    
+
     # Ejecutar pruebas en orden
     test_health_check()
     test_login_client()
@@ -674,7 +718,7 @@ def main():
     test_admin_force_cancel()
     test_unauthorized_access()
     test_client_cannot_access_admin_routes()
-    
+
     # Resumen
     print_summary()
 

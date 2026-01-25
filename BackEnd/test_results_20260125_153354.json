@@ -1,0 +1,116 @@
+[
+  {
+    "test": "Health Check",
+    "success": true,
+    "message": "Service: Pisos Kermy API, Status: healthy",
+    "timestamp": "2026-01-25T15:33:11.022241"
+  },
+  {
+    "test": "Login Cliente",
+    "success": true,
+    "message": "Usuario: Juan Perez, Role: CLIENT",
+    "timestamp": "2026-01-25T15:33:12.266103"
+  },
+  {
+    "test": "Login Admin",
+    "success": true,
+    "message": "Usuario: Administrador Pisos Kermy, Role: ADMIN",
+    "timestamp": "2026-01-25T15:33:12.615435"
+  },
+  {
+    "test": "Ver Perfil Cliente",
+    "success": true,
+    "message": "Email: cliente1@example.com, Nombre: Juan Perez",
+    "timestamp": "2026-01-25T15:33:14.502907"
+  },
+  {
+    "test": "Actualizar Perfil",
+    "success": true,
+    "message": "Nuevo nombre: Juan Perez Test, Nuevo tel: 99998888",
+    "timestamp": "2026-01-25T15:33:15.979442"
+  },
+  {
+    "test": "Refrescar Token",
+    "success": true,
+    "message": "Nuevo access token: True, Nuevo refresh token: True",
+    "timestamp": "2026-01-25T15:33:17.336982"
+  },
+  {
+    "test": "Cerrar Sesión",
+    "success": true,
+    "message": "Token revocado correctamente",
+    "timestamp": "2026-01-25T15:33:19.865837"
+  },
+  {
+    "test": "Listar Usuarios",
+    "success": true,
+    "message": "Total usuarios: 4",
+    "timestamp": "2026-01-25T15:33:21.015203"
+  },
+  {
+    "test": "Obtener Usuario por ID",
+    "success": true,
+    "message": "Usuario: Juan Perez Test",
+    "timestamp": "2026-01-25T15:33:22.157894"
+  },
+  {
+    "test": "Crear Reserva",
+    "success": true,
+    "message": "Reserva ID: 69768c268036cdc2b35d839a, Estado: Pendiente",
+    "timestamp": "2026-01-25T15:33:28.879229"
+  },
+  {
+    "test": "Ver Reservas Cliente",
+    "success": true,
+    "message": "Total reservas: 1",
+    "timestamp": "2026-01-25T15:33:30.350488"
+  },
+  {
+    "test": "Ver Todas las Reservas",
+    "success": true,
+    "message": "Total reservas: 1",
+    "timestamp": "2026-01-25T15:33:31.492842"
+  },
+  {
+    "test": "Ver Detalle de Reserva",
+    "success": true,
+    "message": "Estado: Pendiente, Items: 1",
+    "timestamp": "2026-01-25T15:33:32.632120"
+  },
+  {
+    "test": "Aprobar Reserva",
+    "success": true,
+    "message": "Estado: Aprobada",
+    "timestamp": "2026-01-25T15:33:38.213302"
+  },
+  {
+    "test": "Rechazar Reserva",
+    "success": true,
+    "message": "Estado: Rechazada",
+    "timestamp": "2026-01-25T15:33:44.506556"
+  },
+  {
+    "test": "Cancelar Reserva Cliente",
+    "success": true,
+    "message": "Estado: Cancelada",
+    "timestamp": "2026-01-25T15:33:47.545593"
+  },
+  {
+    "test": "Cancelación Forzada ADMIN",
+    "success": true,
+    "message": "Estado: Cancelada, Cancelada por ADMIN",
+    "timestamp": "2026-01-25T15:33:53.825858"
+  },
+  {
+    "test": "Protección sin Token",
+    "success": true,
+    "message": "Ruta protegida correctamente",
+    "timestamp": "2026-01-25T15:33:53.831147"
+  },
+  {
+    "test": "Control de Permisos",
+    "success": true,
+    "message": "RBAC funciona correctamente",
+    "timestamp": "2026-01-25T15:33:54.990617"
+  }
+]
