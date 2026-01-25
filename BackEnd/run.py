@@ -69,6 +69,11 @@ if __name__ == '__main__':
     🔧 Modo: {'Desarrollo' if debug else 'Producción'}
     📝 Documentación: http://{host}:{port}/
     💚 Health Check: http://{host}:{port}/health
+    
+    ✓ JWT configurado
+    ✓ Blueprints registrados: auth, users, reservations
+    ✓ Jobs programados iniciados (expiración cada 5 min, notificaciones diarias)
+    ✓ Sistema de usuarios semilla activo
     """)
     
     # Ejecutar la aplicación
