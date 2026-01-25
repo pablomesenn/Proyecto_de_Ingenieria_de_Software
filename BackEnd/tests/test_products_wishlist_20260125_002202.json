@@ -1,0 +1,152 @@
+[
+  {
+    "test": "Buscar todos los productos",
+    "success": false,
+    "message": "Encontrados: 0 productos",
+    "timestamp": "2026-01-25T00:21:51.726163"
+  },
+  {
+    "test": "Buscar por texto 'laminado'",
+    "success": true,
+    "message": "Encontrados: 0 productos",
+    "timestamp": "2026-01-25T00:21:51.827055"
+  },
+  {
+    "test": "Filtrar por categoría 'Laminados'",
+    "success": true,
+    "message": "Encontrados: 0 productos",
+    "timestamp": "2026-01-25T00:21:51.929486"
+  },
+  {
+    "test": "Disponibilidad calculada en tiempo real",
+    "success": true,
+    "message": "Productos activos con disponibilidad: 0",
+    "timestamp": "2026-01-25T00:21:52.029695"
+  },
+  {
+    "test": "Detalle de producto",
+    "success": false,
+    "message": "No hay product_id de prueba",
+    "timestamp": "2026-01-25T00:21:52.029881"
+  },
+  {
+    "test": "Obtener categorías",
+    "success": false,
+    "message": "Categorías: ",
+    "timestamp": "2026-01-25T00:21:52.130402"
+  },
+  {
+    "test": "Paginación funcional",
+    "success": true,
+    "message": "Página 1: 0 productos, Página 2: 0 productos",
+    "timestamp": "2026-01-25T00:21:52.332571"
+  },
+  {
+    "test": "Obtener wishlist vacía",
+    "success": true,
+    "message": "Wishlist con 0 items",
+    "timestamp": "2026-01-25T00:21:53.901335"
+  },
+  {
+    "test": "Agregar item a wishlist",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:53.901537"
+  },
+  {
+    "test": "Consolidación de duplicados",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:53.901609"
+  },
+  {
+    "test": "Agregar segundo item",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:53.901671"
+  },
+  {
+    "test": "Obtener wishlist con disponibilidad",
+    "success": false,
+    "message": "Wishlist con 0 items, disponibilidad calculada",
+    "timestamp": "2026-01-25T00:21:54.933042"
+  },
+  {
+    "test": "Resumen de wishlist",
+    "success": true,
+    "message": "Total items: 0, Total cantidad: 0",
+    "timestamp": "2026-01-25T00:21:55.976416"
+  },
+  {
+    "test": "Actualizar item",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:55.976583"
+  },
+  {
+    "test": "Eliminar item",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:55.976619"
+  },
+  {
+    "test": "Convertir wishlist a reserva",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:55.976760"
+  },
+  {
+    "test": "Validación stock insuficiente",
+    "success": false,
+    "message": "No hay items en wishlist",
+    "timestamp": "2026-01-25T00:21:57.045438"
+  },
+  {
+    "test": "Crear reserva directa",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:57.045628"
+  },
+  {
+    "test": "Validación al crear reserva",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:57.045697"
+  },
+  {
+    "test": "Cancelar reserva cliente",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:57.045759"
+  },
+  {
+    "test": "Liberación de inventario",
+    "success": false,
+    "message": "Faltan datos de prueba",
+    "timestamp": "2026-01-25T00:21:57.045822"
+  },
+  {
+    "test": "No re-cancelar",
+    "success": false,
+    "message": "list index out of range",
+    "timestamp": "2026-01-25T00:21:57.045904"
+  },
+  {
+    "test": "Limpiar wishlist",
+    "success": true,
+    "message": "Wishlist limpiada, items restantes: 0",
+    "timestamp": "2026-01-25T00:21:59.144830"
+  },
+  {
+    "test": "ADMIN crear producto",
+    "success": true,
+    "message": "Producto creado: 6975b688195dd01ed20da593",
+    "timestamp": "2026-01-25T00:22:01.187737"
+  },
+  {
+    "test": "RBAC: Cliente no puede crear productos",
+    "success": true,
+    "message": "Permisos validados correctamente",
+    "timestamp": "2026-01-25T00:22:02.139665"
+  }
+]
