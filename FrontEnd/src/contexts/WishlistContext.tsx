@@ -1,6 +1,14 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { useAuth } from "./AuthContext";
+import * as wishlistApi from "@/api/wishlist";
 
-export interface WishlistVariant {
+export interface WishlistItemVariant {
   id: string;
   size: string;
   available: boolean;
@@ -10,147 +18,200 @@ export interface WishlistVariant {
 export interface WishlistItem {
   id: string;
   productId: string;
+  variantId: string;
   name: string;
   category: string;
   image: string;
-  variant: WishlistVariant;
+  variant: WishlistItemVariant;
   quantity: number;
-  addedAt: Date;
+  addedAt: string;
 }
 
 interface WishlistContextType {
   items: WishlistItem[];
-  addItem: (item: Omit<WishlistItem, "id" | "addedAt">) => void;
-  removeItem: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
-  clearWishlist: () => void;
+  loading: boolean;
+  error: string | null;
+  addItem: (variantId: string, quantity?: number) => Promise<void>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
+  clearWishlist: () => Promise<void>;
   getTotalItems: () => number;
-  isInWishlist: (productId: string, variantId: string) => boolean;
+  refreshWishlist: () => Promise<void>;
 }
 
-const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
+const WishlistContext = createContext<WishlistContextType | undefined>(
+  undefined,
+);
 
-// Mock initial items for demonstration
-const mockItems: WishlistItem[] = [
-  {
-    id: "w1",
-    productId: "1",
-    name: "Porcelanato Terrazo Blanco",
-    category: "Porcelanato",
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop",
-    variant: { id: "v1", size: "60x60 cm", available: true, stock: 150 },
-    quantity: 10,
-    addedAt: new Date(Date.now() - 86400000), // 1 day ago
-  },
-  {
-    id: "w2",
-    productId: "2",
-    name: "Mármol Calacatta Gold",
-    category: "Mármol",
-    image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=600&fit=crop",
-    variant: { id: "v1", size: "60x120 cm", available: true, stock: 45 },
-    quantity: 5,
-    addedAt: new Date(Date.now() - 43200000), // 12 hours ago
-  },
-  {
-    id: "w3",
-    productId: "3",
-    name: "Cerámica Rústica Terracota",
-    category: "Cerámica",
-    image: "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=600&h=600&fit=crop",
-    variant: { id: "v1", size: "45x45 cm", available: false, stock: 0 },
-    quantity: 8,
-    addedAt: new Date(Date.now() - 172800000), // 2 days ago
-  },
-  {
-    id: "w4",
-    productId: "5",
-    name: "Porcelanato Madera Natural",
-    category: "Porcelanato",
-    image: "https://images.unsplash.com/photo-1615529328331-f8917597711f?w=600&h=600&fit=crop",
-    variant: { id: "v2", size: "25x150 cm", available: true, stock: 80 },
-    quantity: 15,
-    addedAt: new Date(),
-  },
-];
+export function WishlistProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<WishlistItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
-export const WishlistProvider = ({ children }: { children: ReactNode }) => {
-  const [items, setItems] = useState<WishlistItem[]>(mockItems);
-
-  const addItem = (newItem: Omit<WishlistItem, "id" | "addedAt">) => {
-    // Check if item with same product and variant exists
-    const existingIndex = items.findIndex(
-      (item) => item.productId === newItem.productId && item.variant.id === newItem.variant.id
-    );
-
-    if (existingIndex !== -1) {
-      // Consolidate: add quantities
-      setItems((prev) =>
-        prev.map((item, index) =>
-          index === existingIndex
-            ? { ...item, quantity: Math.min(item.quantity + newItem.quantity, item.variant.stock) }
-            : item
-        )
-      );
+  // Load wishlist when user logs in
+  useEffect(() => {
+    if (user) {
+      refreshWishlist();
     } else {
-      setItems((prev) => [
-        ...prev,
-        {
-          ...newItem,
-          id: `w${Date.now()}`,
-          addedAt: new Date(),
-        },
-      ]);
+      // Clear wishlist when user logs out
+      setItems([]);
+      setError(null);
+    }
+  }, [user]);
+
+  const refreshWishlist = async () => {
+    if (!user) {
+      setItems([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const wishlist = await wishlistApi.getWishlist();
+      const mappedItems = wishlist.items.map(wishlistApi.mapWishlistItemToUI);
+      setItems(mappedItems);
+    } catch (err) {
+      console.error("Error loading wishlist:", err);
+
+      // Don't show error for 401 (user not logged in)
+      if (
+        err instanceof Error &&
+        !err.message.includes("401") &&
+        !err.message.includes("Token")
+      ) {
+        setError(err.message || "Error cargando lista de interés");
+      }
+      setItems([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const addItem = async (variantId: string, quantity: number = 1) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para agregar items a tu lista");
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await wishlistApi.addItemToWishlist({
+        variant_id: variantId,
+        quantity,
+      });
+      const mappedItems = response.wishlist.items.map(
+        wishlistApi.mapWishlistItemToUI,
+      );
+      setItems(mappedItems);
+    } catch (err) {
+      console.error("Error adding item to wishlist:", err);
+      setError(err instanceof Error ? err.message : "Error agregando item");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateQuantity = (id: string, quantity: number) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, quantity: Math.max(1, Math.min(quantity, item.variant.stock || 1)) }
-          : item
-      )
-    );
+  const updateQuantity = async (itemId: string, quantity: number) => {
+    if (!user) return;
+
+    if (quantity < 1) {
+      await removeItem(itemId);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await wishlistApi.updateWishlistItem(itemId, {
+        quantity,
+      });
+      const mappedItems = response.wishlist.items.map(
+        wishlistApi.mapWishlistItemToUI,
+      );
+      setItems(mappedItems);
+    } catch (err) {
+      console.error("Error updating wishlist item:", err);
+      setError(
+        err instanceof Error ? err.message : "Error actualizando cantidad",
+      );
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const clearWishlist = () => {
-    setItems([]);
+  const removeItem = async (itemId: string) => {
+    if (!user) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await wishlistApi.removeWishlistItem(itemId);
+      const mappedItems = response.wishlist.items.map(
+        wishlistApi.mapWishlistItemToUI,
+      );
+      setItems(mappedItems);
+    } catch (err) {
+      console.error("Error removing wishlist item:", err);
+      setError(err instanceof Error ? err.message : "Error eliminando item");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearWishlist = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await wishlistApi.clearWishlist();
+      setItems([]);
+    } catch (err) {
+      console.error("Error clearing wishlist:", err);
+      setError(err instanceof Error ? err.message : "Error limpiando lista");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getTotalItems = () => {
     return items.reduce((total, item) => total + item.quantity, 0);
   };
 
-  const isInWishlist = (productId: string, variantId: string) => {
-    return items.some((item) => item.productId === productId && item.variant.id === variantId);
-  };
-
   return (
     <WishlistContext.Provider
       value={{
         items,
+        loading,
+        error,
         addItem,
-        removeItem,
         updateQuantity,
+        removeItem,
         clearWishlist,
         getTotalItems,
-        isInWishlist,
+        refreshWishlist,
       }}
     >
       {children}
     </WishlistContext.Provider>
   );
-};
+}
 
-export const useWishlist = () => {
+export function useWishlist() {
   const context = useContext(WishlistContext);
   if (context === undefined) {
     throw new Error("useWishlist must be used within a WishlistProvider");
   }
   return context;
-};
+}

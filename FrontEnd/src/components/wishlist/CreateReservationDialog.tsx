@@ -13,15 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  CalendarClock, 
-  Check, 
+import {
+  CalendarClock,
+  Check,
   AlertTriangle,
-  ShoppingBag 
+  ShoppingBag,
+  Loader2,
 } from "lucide-react";
 import { WishlistItem, useWishlist } from "@/contexts/WishlistContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import * as wishlistApi from "@/api/wishlist";
 
 interface CreateReservationDialogProps {
   open: boolean;
@@ -35,10 +37,10 @@ const CreateReservationDialog = ({
   items,
 }: CreateReservationDialogProps) => {
   const navigate = useNavigate();
-  const { clearWishlist } = useWishlist();
+  const { refreshWishlist } = useWishlist();
   const { toast } = useToast();
   const [selectedItems, setSelectedItems] = useState<string[]>(
-    items.filter((item) => item.variant.available).map((item) => item.id)
+    items.filter((item) => item.variant.available).map((item) => item.id),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -47,7 +49,7 @@ const CreateReservationDialog = ({
 
   const toggleItem = (id: string) => {
     setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -64,27 +66,52 @@ const CreateReservationDialog = ({
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      // Prepare items for reservation
+      const itemsToReserve = items
+        .filter((item) => selectedItems.includes(item.id))
+        .map((item) => ({
+          item_id: item.id,
+          quantity: item.quantity,
+        }));
 
-    toast({
-      title: "¡Reserva creada exitosamente!",
-      description:
-        "Recibirás una confirmación en un plazo de 24 horas hábiles.",
-    });
+      // Call API to convert wishlist to reservation
+      const response = await wishlistApi.convertWishlistToReservation({
+        items: itemsToReserve,
+      });
 
-    clearWishlist();
-    setIsSubmitting(false);
-    onOpenChange(false);
-    navigate("/reservations");
+      toast({
+        title: "¡Reserva creada exitosamente!",
+        description:
+          "Recibirás una confirmación en un plazo de 24 horas hábiles.",
+      });
+
+      // Refresh wishlist to reflect removed items
+      await refreshWishlist();
+
+      onOpenChange(false);
+      navigate("/reservations");
+    } catch (error) {
+      console.error("Error creating reservation:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "No se pudo crear la reserva",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectedItemsData = items.filter((item) =>
-    selectedItems.includes(item.id)
+    selectedItems.includes(item.id),
   );
   const totalItems = selectedItemsData.reduce(
     (sum, item) => sum + item.quantity,
-    0
+    0,
   );
 
   return (
@@ -126,7 +153,7 @@ const CreateReservationDialog = ({
                     "flex items-center gap-3 p-3 rounded-lg border transition-colors",
                     selectedItems.includes(item.id)
                       ? "border-primary bg-primary/5"
-                      : "border-border"
+                      : "border-border",
                   )}
                 >
                   <Checkbox
@@ -203,7 +230,11 @@ const CreateReservationDialog = ({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
+          >
             Cancelar
           </Button>
           <Button
@@ -212,7 +243,7 @@ const CreateReservationDialog = ({
           >
             {isSubmitting ? (
               <>
-                <span className="animate-spin mr-2">⏳</span>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Procesando...
               </>
             ) : (
