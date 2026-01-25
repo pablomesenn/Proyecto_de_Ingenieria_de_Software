@@ -1,7 +1,7 @@
 from datetime import datetime
 from bson import ObjectId
 
-""" File para los productos y para las variates"""
+""" File para los productos, las variates y los wishlist"""
 
 class Product:
     def __init__(
