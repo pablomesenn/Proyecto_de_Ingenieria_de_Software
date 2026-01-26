@@ -152,7 +152,7 @@ export function mapProductToUI(product: Product) {
     };
   });
 
-  // Determine availability
+  // Determine availability - check if any variant has stock
   const estado = product.estado || "activo";
   const hasStock = mappedVariants.some((v) => v.stock > 0);
   const available =
@@ -173,4 +173,10 @@ export function mapProductToUI(product: Product) {
     createdAt: product.created_at || "",
     updatedAt: product.updated_at || "",
   };
+}
+
+// Get product with real-time inventory data
+export async function getProductWithInventory(productId: string) {
+  const product = await getProductDetail(productId);
+  return mapProductToUI(product);
 }

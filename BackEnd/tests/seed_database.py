@@ -5,6 +5,7 @@ MEJORAS:
 - Crea inventario correctamente para cada variante
 - Asegura que haya stock disponible > 0
 - Mejor estructura y logging
+- Datos más realistas y variados
 """
 
 import sys
@@ -118,16 +119,16 @@ def create_products_and_inventory(db):
 
     products_data = []
     variants_data = []
-    inventory_data = []
+    inventory_records = []
 
-    # ========== PRODUCTO 1: Piso Laminado ==========
+    # ========== PRODUCTO 1: Piso Laminado Premium ==========
     product1 = {
-        'nombre': 'Piso Laminado Premium',
-        'imagen_url': 'https://example.com/laminado-premium.jpg',
+        'nombre': 'Piso Laminado Premium Roble Europeo',
+        'imagen_url': 'https://images.unsplash.com/photo-1615971677499-5467cbab01c0?w=600&h=600&fit=crop',
         'categoria': 'Laminados',
-        'tags': ['premium', 'resistente', 'facil-instalacion'],
+        'tags': ['Premium', 'Interior', 'Moderno'],
         'estado': ProductState.ACTIVE,
-        'descripcion_embalaje': 'Caja de 10 piezas - 2.5m² por caja',
+        'descripcion_embalaje': 'Resistente al agua y rayones. Fácil instalación con sistema click. Caja de 10 piezas - 2.5m² por caja',
         'created_at': datetime.utcnow(),
         'updated_at': datetime.utcnow()
     }
@@ -136,36 +137,37 @@ def create_products_and_inventory(db):
     products_data.append((product1_id, product1['nombre']))
 
     # Variantes del producto 1
-    variant1_1 = {
-        'product_id': product1_id,
-        'tamano_pieza': '1.2m x 0.2m',
-        'unidad': 'm²',
-        'precio': 15000.00,
-        'created_at': datetime.utcnow()
-    }
-    variant1_2 = {
-        'product_id': product1_id,
-        'tamano_pieza': '2.0m x 0.25m',
-        'unidad': 'm²',
-        'precio': 22000.00,
-        'created_at': datetime.utcnow()
-    }
+    p1_variants = [
+        {'tamano_pieza': '1.2m x 0.2m', 'precio': 15000.00, 'stock': 150},
+        {'tamano_pieza': '2.0m x 0.25m', 'precio': 22000.00, 'stock': 100},
+    ]
 
-    variant1_1_id = db.variants.insert_one(variant1_1).inserted_id
-    variant1_2_id = db.variants.insert_one(variant1_2).inserted_id
-    variants_data.extend([
-        (variant1_1_id, variant1_1['tamano_pieza'], variant1_1['precio']),
-        (variant1_2_id, variant1_2['tamano_pieza'], variant1_2['precio'])
-    ])
+    for var_data in p1_variants:
+        variant = {
+            'product_id': product1_id,
+            'tamano_pieza': var_data['tamano_pieza'],
+            'unidad': 'm²',
+            'precio': var_data['precio'],
+            'created_at': datetime.utcnow()
+        }
+        variant_id = db.variants.insert_one(variant).inserted_id
+        variants_data.append((variant_id, var_data['tamano_pieza'], var_data['precio']))
 
-    # ========== PRODUCTO 2: Porcelanato ==========
+        # Crear inventario para esta variante
+        inventory_records.append({
+            'variant_id': variant_id,
+            'stock_total': var_data['stock'],
+            'stock_retenido': 0
+        })
+
+    # ========== PRODUCTO 2: Porcelanato Carrara ==========
     product2 = {
-        'nombre': 'Porcelanato Italiano Carrara',
-        'imagen_url': 'https://example.com/porcelanato-carrara.jpg',
+        'nombre': 'Porcelanato Italiano Carrara Blanco',
+        'imagen_url': 'https://images.unsplash.com/photo-1615876234886-fd9a39fda97f?w=600&h=600&fit=crop',
         'categoria': 'Porcelanato',
-        'tags': ['italiano', 'marmol', 'elegante'],
+        'tags': ['Premium', 'Elegante', 'Interior'],
         'estado': ProductState.ACTIVE,
-        'descripcion_embalaje': 'Caja de 6 piezas - 2.16m² por caja',
+        'descripcion_embalaje': 'Acabado marmolado elegante. Alta resistencia al tráfico. Caja de 6 piezas - 2.16m² por caja',
         'created_at': datetime.utcnow(),
         'updated_at': datetime.utcnow()
     }
@@ -174,36 +176,36 @@ def create_products_and_inventory(db):
     products_data.append((product2_id, product2['nombre']))
 
     # Variantes del producto 2
-    variant2_1 = {
-        'product_id': product2_id,
-        'tamano_pieza': '60cm x 60cm',
-        'unidad': 'm²',
-        'precio': 28000.00,
-        'created_at': datetime.utcnow()
-    }
-    variant2_2 = {
-        'product_id': product2_id,
-        'tamano_pieza': '80cm x 80cm',
-        'unidad': 'm²',
-        'precio': 42000.00,
-        'created_at': datetime.utcnow()
-    }
+    p2_variants = [
+        {'tamano_pieza': '60cm x 60cm', 'precio': 28000.00, 'stock': 200},
+        {'tamano_pieza': '80cm x 80cm', 'precio': 42000.00, 'stock': 80},
+    ]
 
-    variant2_1_id = db.variants.insert_one(variant2_1).inserted_id
-    variant2_2_id = db.variants.insert_one(variant2_2).inserted_id
-    variants_data.extend([
-        (variant2_1_id, variant2_1['tamano_pieza'], variant2_1['precio']),
-        (variant2_2_id, variant2_2['tamano_pieza'], variant2_2['precio'])
-    ])
+    for var_data in p2_variants:
+        variant = {
+            'product_id': product2_id,
+            'tamano_pieza': var_data['tamano_pieza'],
+            'unidad': 'm²',
+            'precio': var_data['precio'],
+            'created_at': datetime.utcnow()
+        }
+        variant_id = db.variants.insert_one(variant).inserted_id
+        variants_data.append((variant_id, var_data['tamano_pieza'], var_data['precio']))
 
-    # ========== PRODUCTO 3: Ceramica ==========
+        inventory_records.append({
+            'variant_id': variant_id,
+            'stock_total': var_data['stock'],
+            'stock_retenido': 0
+        })
+
+    # ========== PRODUCTO 3: Cerámica Antideslizante ==========
     product3 = {
-        'nombre': 'Cerámica Antideslizante Exterior',
-        'imagen_url': 'https://example.com/ceramica-antideslizante.jpg',
+        'nombre': 'Cerámica Antideslizante Exterior Gris',
+        'imagen_url': 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=600&fit=crop',
         'categoria': 'Ceramica',
-        'tags': ['exterior', 'antideslizante', 'durable'],
+        'tags': ['Exterior', 'Antideslizante', 'Durable'],
         'estado': ProductState.ACTIVE,
-        'descripcion_embalaje': 'Caja de 12 piezas - 1.44m² por caja',
+        'descripcion_embalaje': 'Superficie antideslizante certificada. Ideal para exteriores. Caja de 12 piezas - 1.44m² por caja',
         'created_at': datetime.utcnow(),
         'updated_at': datetime.utcnow()
     }
@@ -212,64 +214,187 @@ def create_products_and_inventory(db):
     products_data.append((product3_id, product3['nombre']))
 
     # Variantes del producto 3
-    variant3_1 = {
-        'product_id': product3_id,
-        'tamano_pieza': '30cm x 30cm',
-        'unidad': 'm²',
-        'precio': 12000.00,
-        'created_at': datetime.utcnow()
-    }
-    variant3_2 = {
-        'product_id': product3_id,
-        'tamano_pieza': '45cm x 45cm',
-        'unidad': 'm²',
-        'precio': 18000.00,
-        'created_at': datetime.utcnow()
-    }
-
-    variant3_1_id = db.variants.insert_one(variant3_1).inserted_id
-    variant3_2_id = db.variants.insert_one(variant3_2).inserted_id
-    variants_data.extend([
-        (variant3_1_id, variant3_1['tamano_pieza'], variant3_1['precio']),
-        (variant3_2_id, variant3_2['tamano_pieza'], variant3_2['precio'])
-    ])
-
-    # ========== CREAR INVENTARIO CON STOCK ==========
-    print("\nCreando registros de inventario:")
-
-    # Inventario para todas las variantes con STOCK ABUNDANTE
-    inventory_records = [
-        # Producto 1 - Laminado
-        {'variant_id': variant1_1_id, 'stock_total': 150, 'stock_retenido': 0},
-        {'variant_id': variant1_2_id, 'stock_total': 100, 'stock_retenido': 0},
-        # Producto 2 - Porcelanato
-        {'variant_id': variant2_1_id, 'stock_total': 200, 'stock_retenido': 0},
-        {'variant_id': variant2_2_id, 'stock_total': 80, 'stock_retenido': 0},
-        # Producto 3 - Cerámica
-        {'variant_id': variant3_1_id, 'stock_total': 300, 'stock_retenido': 0},
-        {'variant_id': variant3_2_id, 'stock_total': 120, 'stock_retenido': 0},
+    p3_variants = [
+        {'tamano_pieza': '30cm x 30cm', 'precio': 12000.00, 'stock': 300},
+        {'tamano_pieza': '45cm x 45cm', 'precio': 18000.00, 'stock': 120},
     ]
 
+    for var_data in p3_variants:
+        variant = {
+            'product_id': product3_id,
+            'tamano_pieza': var_data['tamano_pieza'],
+            'unidad': 'm²',
+            'precio': var_data['precio'],
+            'created_at': datetime.utcnow()
+        }
+        variant_id = db.variants.insert_one(variant).inserted_id
+        variants_data.append((variant_id, var_data['tamano_pieza'], var_data['precio']))
+
+        inventory_records.append({
+            'variant_id': variant_id,
+            'stock_total': var_data['stock'],
+            'stock_retenido': 0
+        })
+
+    # ========== PRODUCTO 4: Porcelanato Madera ==========
+    product4 = {
+        'nombre': 'Porcelanato Símil Madera Natural',
+        'imagen_url': 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop',
+        'categoria': 'Porcelanato',
+        'tags': ['Moderno', 'Interior', 'Rústico'],
+        'estado': ProductState.ACTIVE,
+        'descripcion_embalaje': 'Efecto madera realista. Fácil limpieza. Caja de 8 piezas - 2.4m² por caja',
+        'created_at': datetime.utcnow(),
+        'updated_at': datetime.utcnow()
+    }
+
+    product4_id = db.products.insert_one(product4).inserted_id
+    products_data.append((product4_id, product4['nombre']))
+
+    # Variantes del producto 4
+    p4_variants = [
+        {'tamano_pieza': '20cm x 120cm', 'precio': 32000.00, 'stock': 90},
+        {'tamano_pieza': '25cm x 150cm', 'precio': 45000.00, 'stock': 60},
+    ]
+
+    for var_data in p4_variants:
+        variant = {
+            'product_id': product4_id,
+            'tamano_pieza': var_data['tamano_pieza'],
+            'unidad': 'm²',
+            'precio': var_data['precio'],
+            'created_at': datetime.utcnow()
+        }
+        variant_id = db.variants.insert_one(variant).inserted_id
+        variants_data.append((variant_id, var_data['tamano_pieza'], var_data['precio']))
+
+        inventory_records.append({
+            'variant_id': variant_id,
+            'stock_total': var_data['stock'],
+            'stock_retenido': 0
+        })
+
+    # ========== PRODUCTO 5: Granito Negro ==========
+    product5 = {
+        'nombre': 'Granito Negro Absoluto Premium',
+        'imagen_url': 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=600&h=600&fit=crop',
+        'categoria': 'Granito',
+        'tags': ['Premium', 'Elegante', 'Interior'],
+        'estado': ProductState.ACTIVE,
+        'descripcion_embalaje': 'Granito natural de alta calidad. Pulido brillante. Caja de 4 piezas - 1.44m² por caja',
+        'created_at': datetime.utcnow(),
+        'updated_at': datetime.utcnow()
+    }
+
+    product5_id = db.products.insert_one(product5).inserted_id
+    products_data.append((product5_id, product5['nombre']))
+
+    # Variantes del producto 5
+    p5_variants = [
+        {'tamano_pieza': '60cm x 60cm', 'precio': 55000.00, 'stock': 50},
+        {'tamano_pieza': '80cm x 80cm', 'precio': 78000.00, 'stock': 30},
+    ]
+
+    for var_data in p5_variants:
+        variant = {
+            'product_id': product5_id,
+            'tamano_pieza': var_data['tamano_pieza'],
+            'unidad': 'm²',
+            'precio': var_data['precio'],
+            'created_at': datetime.utcnow()
+        }
+        variant_id = db.variants.insert_one(variant).inserted_id
+        variants_data.append((variant_id, var_data['tamano_pieza'], var_data['precio']))
+
+        inventory_records.append({
+            'variant_id': variant_id,
+            'stock_total': var_data['stock'],
+            'stock_retenido': 0
+        })
+
+    # ========== PRODUCTO 6: Mármol Blanco (Stock bajo para testing) ==========
+    product6 = {
+        'nombre': 'Mármol Blanco Calacatta',
+        'imagen_url': 'https://images.unsplash.com/photo-1615875474908-f403b2a3f247?w=600&h=600&fit=crop',
+        'categoria': 'Mármol',
+        'tags': ['Premium', 'Elegante', 'Exclusivo'],
+        'estado': ProductState.ACTIVE,
+        'descripcion_embalaje': 'Mármol natural italiano. Vetas doradas únicas. Caja de 3 piezas - 1.08m² por caja',
+        'created_at': datetime.utcnow(),
+        'updated_at': datetime.utcnow()
+    }
+
+    product6_id = db.products.insert_one(product6).inserted_id
+    products_data.append((product6_id, product6['nombre']))
+
+    # Variantes del producto 6 - CON STOCK BAJO para testing de alertas
+    p6_variants = [
+        {'tamano_pieza': '60cm x 60cm', 'precio': 95000.00, 'stock': 8},  # Stock bajo
+        {'tamano_pieza': '80cm x 80cm', 'precio': 135000.00, 'stock': 3},  # Stock muy bajo
+    ]
+
+    for var_data in p6_variants:
+        variant = {
+            'product_id': product6_id,
+            'tamano_pieza': var_data['tamano_pieza'],
+            'unidad': 'm²',
+            'precio': var_data['precio'],
+            'created_at': datetime.utcnow()
+        }
+        variant_id = db.variants.insert_one(variant).inserted_id
+        variants_data.append((variant_id, var_data['tamano_pieza'], var_data['precio']))
+
+        inventory_records.append({
+            'variant_id': variant_id,
+            'stock_total': var_data['stock'],
+            'stock_retenido': 0
+        })
+
+    # ========== INSERTAR INVENTARIO ==========
+    print(f"\nCreando {len(inventory_records)} registros de inventario:")
+
     for inv in inventory_records:
-        inv['updated_at'] = datetime.utcnow()
-        inv['created_at'] = datetime.utcnow()
+        inv['actualizado_en'] = datetime.utcnow()
+        inv['creado_en'] = datetime.utcnow()
 
     db.inventory.insert_many(inventory_records)
 
-    # Imprimir resumen
-    print(f"\n✓ {len(products_data)} productos creados:")
-    for prod_id, name in products_data:
-        print(f"  - {name} (ID: {prod_id})")
-
-    print(f"\n✓ {len(variants_data)} variantes creadas:")
-    for var_id, size, price in variants_data:
-        print(f"  - {size} - ₡{price:,.2f} (ID: {var_id})")
-
-    print(f"\n✓ {len(inventory_records)} registros de inventario creados:")
+    # Crear movimientos iniciales de inventario
     for inv in inventory_records:
-        print(f"  - Variante {inv['variant_id']}: {inv['stock_total']} unidades disponibles")
+        movement = {
+            'variant_id': inv['variant_id'],
+            'quantity': inv['stock_total'],
+            'movement_type': 'initial',
+            'reason': 'initial_stock',
+            'actor_id': None,
+            'creado_en': datetime.utcnow()
+        }
+        db.inventory_movements.insert_one(movement)
 
+    # Imprimir resumen con tabla
+    print(f"\n✓ {len(products_data)} productos creados")
+    print(f"✓ {len(variants_data)} variantes creadas")
+    print(f"✓ {len(inventory_records)} registros de inventario creados")
+
+    print("\n" + "="*70)
+    print("RESUMEN DE INVENTARIO POR PRODUCTO")
     print("="*70)
+
+    for prod_id, prod_name in products_data:
+        print(f"\n📦 {prod_name}")
+        # Get variants for this product
+        product_variants = [(v_id, size, price) for v_id, size, price in variants_data
+                           if any(inv['variant_id'] == v_id for inv in inventory_records)]
+
+        for var_id, size, price in product_variants:
+            # Find inventory for this variant
+            inv = next((i for i in inventory_records if i['variant_id'] == var_id), None)
+            if inv:
+                disponible = inv['stock_total'] - inv['stock_retenido']
+                status = "✅" if disponible > 10 else ("⚠️" if disponible > 0 else "❌")
+                print(f"   {status} {size:20s} - ₡{price:>10,.2f} - Stock: {disponible:>3} unidades")
+
+    print("\n" + "="*70)
 
     return {
         'product_ids': [p[0] for p in products_data],
@@ -288,30 +413,51 @@ def verify_data(db):
         'users': db.users.count_documents({}),
         'products': db.products.count_documents({}),
         'variants': db.variants.count_documents({}),
-        'inventory': db.inventory.count_documents({})
+        'inventory': db.inventory.count_documents({}),
+        'inventory_movements': db.inventory_movements.count_documents({})
     }
 
     print(f"✓ Usuarios: {counts['users']}")
     print(f"✓ Productos: {counts['products']}")
     print(f"✓ Variantes: {counts['variants']}")
-    print(f"✓ Inventario: {counts['inventory']}")
+    print(f"✓ Registros de Inventario: {counts['inventory']}")
+    print(f"✓ Movimientos de Inventario: {counts['inventory_movements']}")
 
     # Verificar stock disponible
     total_stock = 0
+    total_retenido = 0
     for inv in db.inventory.find():
         disponible = inv['stock_total'] - inv.get('stock_retenido', 0)
-        total_stock += disponible
+        total_stock += inv['stock_total']
+        total_retenido += inv.get('stock_retenido', 0)
 
-    print(f"✓ Stock total disponible: {total_stock} unidades")
+    total_disponible = total_stock - total_retenido
+
+    print(f"\n📊 Estadísticas de Stock:")
+    print(f"   Stock Total: {total_stock} unidades")
+    print(f"   Stock Retenido: {total_retenido} unidades")
+    print(f"   Stock Disponible: {total_disponible} unidades")
 
     # Verificar que al menos una variante tenga stock
-    variants_with_stock = db.inventory.count_documents({
-        '$expr': {'$gt': [{'$subtract': ['$stock_total', '$stock_retenido']}, 0]}
-    })
+    variants_with_stock = 0
+    variants_low_stock = 0
+    variants_no_stock = 0
 
-    print(f"✓ Variantes con stock disponible: {variants_with_stock}")
+    for inv in db.inventory.find():
+        disponible = inv['stock_total'] - inv.get('stock_retenido', 0)
+        if disponible > 10:
+            variants_with_stock += 1
+        elif disponible > 0:
+            variants_low_stock += 1
+        else:
+            variants_no_stock += 1
 
-    if variants_with_stock == 0:
+    print(f"\n📈 Análisis de Disponibilidad:")
+    print(f"   ✅ Stock Alto (>10): {variants_with_stock} variantes")
+    print(f"   ⚠️  Stock Bajo (1-10): {variants_low_stock} variantes")
+    print(f"   ❌ Sin Stock: {variants_no_stock} variantes")
+
+    if variants_with_stock == 0 and variants_low_stock == 0:
         print("\n⚠️  ADVERTENCIA: No hay variantes con stock disponible!")
         return False
 
@@ -383,15 +529,18 @@ def main():
 
             print(f"\nResumen:")
             print(f"  - 3 usuarios creados")
-            print(f"  - 3 productos creados")
-            print(f"  - 6 variantes creadas")
+            print(f"  - 6 productos creados con descripciones detalladas")
+            print(f"  - 12 variantes creadas con diferentes tamaños")
             print(f"  - Stock total: {product_data['total_stock']} unidades")
+            print(f"  - Incluye productos con stock alto y bajo para testing")
 
             # Imprimir credenciales
             print_credentials(user_ids)
 
-            print("\n🚀 Puedes ejecutar ahora:")
-            print("   python test_all_endpoints_fixed.py")
+            print("\n🚀 Sistema listo para usar:")
+            print("   1. Backend: python run.py")
+            print("   2. Frontend: npm run dev")
+            print("   3. Prueba el endpoint: curl http://localhost:5000/api/inventory/variant/<variant_id>")
             print("\n" + "="*70)
 
             return 0
