@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, validate, pre_load
 
 
 class ProductSearchSchema(Schema):
@@ -8,6 +8,24 @@ class ProductSearchSchema(Schema):
     disponibilidad = fields.Bool(required=False, missing=True)
     skip = fields.Int(required=False, missing=0, validate=validate.Range(min=0))
     limit = fields.Int(required=False, missing=20, validate=validate.Range(min=1, max=100))
+
+    @pre_load
+    def process_tags(self, data, **kwargs):
+        """Convert tags from ImmutableMultiDict to list"""
+        # Create a mutable copy since request.args is immutable
+        if hasattr(data, 'to_dict'):
+            # It's an ImmutableMultiDict from Flask
+            mutable_data = {}
+            for key in data.keys():
+                values = data.getlist(key)
+                # If it's tags and has multiple values, keep as list
+                if key == 'tags' and len(values) > 0:
+                    mutable_data[key] = values
+                else:
+                    # For other fields, take the first value
+                    mutable_data[key] = values[0] if values else None
+            return mutable_data
+        return data
 
 
 class CreateProductSchema(Schema):
