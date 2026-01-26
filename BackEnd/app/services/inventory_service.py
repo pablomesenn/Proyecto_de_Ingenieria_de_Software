@@ -37,8 +37,8 @@ class InventoryService:
             'stock_total': inventory['stock_total'],
             'stock_retenido': inventory['stock_retenido'],
             'disponibilidad': max(0, disponibilidad),
-            'updated_at': inventory.get('updated_at'),
-            'created_at': inventory.get('created_at'),
+            'actualizado_en': inventory.get('actualizado_en'),
+            'creado_en': inventory.get('creado_en'),
             'exists': True
         }
 
@@ -61,8 +61,8 @@ class InventoryService:
                 'product_name': inv.get('product_name'),
                 'variant_size': inv.get('variant_size'),
                 'variant_price': inv.get('variant_price'),
-                'updated_at': inv.get('updated_at'),
-                'created_at': inv.get('created_at')
+                'actualizado_en': inv.get('actualizado_en'),
+                'creado_en': inv.get('creado_en')
             })
 
         return result
@@ -261,7 +261,7 @@ class InventoryService:
                 'movement_type': movement['movement_type'],
                 'reason': movement.get('reason'),
                 'actor_id': str(movement['actor_id']) if movement.get('actor_id') else None,
-                'created_at': movement['created_at']
+                'creado_en': movement['creado_en']
             })
 
         return result

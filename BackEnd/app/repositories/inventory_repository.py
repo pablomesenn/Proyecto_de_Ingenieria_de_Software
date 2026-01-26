@@ -17,7 +17,7 @@ class InventoryRepository:
         return self.collection.find_one({'_id': ObjectId(inventory_id)})
 
     def get_all(self, skip=0, limit=20):
-        cursor = self.collection.find({}).sort('updated_at', -1).skip(skip).limit(limit)
+        cursor = self.collection.find({}).sort('actualizado_en', -1).skip(skip).limit(limit)
         return list(cursor)
 
     def get_all_with_details(self, skip=0, limit=20):
@@ -46,14 +46,14 @@ class InventoryRepository:
                     'variant_id': 1,
                     'stock_total': 1,
                     'stock_retenido': 1,
-                    'updated_at': 1,
-                    'created_at': 1,
+                    'actualizado_en': 1,
+                    'creado_en': 1,
                     'product_name': '$product_details.nombre',
                     'variant_size': '$variant_details.tamano_pieza',
                     'variant_price': '$variant_details.precio'
                 }
             },
-            {'$sort': {'updated_at': -1}},
+            {'$sort': {'actualizado_en': -1}},
             {'$skip': skip},
             {'$limit': limit}
         ]
@@ -79,7 +79,7 @@ class InventoryRepository:
             {
                 '$set': {
                     'stock_total': new_stock_total,
-                    'updated_at': datetime.utcnow()
+                    'actualizado_en': datetime.utcnow()
                 }
             }
         )
@@ -101,7 +101,7 @@ class InventoryRepository:
             {'variant_id': ObjectId(variant_id)},
             {
                 '$inc': {'stock_retenido': quantity},
-                '$set': {'updated_at': datetime.utcnow()}
+                '$set': {'actualizado_en': datetime.utcnow()}
             }
         )
 
@@ -128,7 +128,7 @@ class InventoryRepository:
             {
                 '$set': {
                     'stock_retenido': new_retained,
-                    'updated_at': datetime.utcnow()
+                    'actualizado_en': datetime.utcnow()
                 }
             }
         )
@@ -160,7 +160,7 @@ class InventoryRepository:
             {
                 '$set': {
                     'stock_total': new_stock,
-                    'updated_at': datetime.utcnow()
+                    'actualizado_en': datetime.utcnow()
                 }
             }
         )
@@ -184,7 +184,7 @@ class InventoryRepository:
             'movement_type': movement_type,
             'reason': reason,
             'actor_id': ObjectId(actor_id) if actor_id else None,
-            'created_at': datetime.utcnow()
+            'creado_en': datetime.utcnow()
         }
         self.movements_collection.insert_one(movement)
 
@@ -196,7 +196,7 @@ class InventoryRepository:
         if movement_type:
             query['movement_type'] = movement_type
 
-        cursor = self.movements_collection.find(query).sort('created_at', -1).skip(skip).limit(limit)
+        cursor = self.movements_collection.find(query).sort('creado_en', -1).skip(skip).limit(limit)
         return list(cursor)
 
     def validate_availability(self, variant_id, quantity):
