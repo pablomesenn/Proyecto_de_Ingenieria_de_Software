@@ -1,4 +1,5 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,17 @@ import {
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
   ArrowLeft,
   User,
   Mail,
@@ -22,71 +34,162 @@ import {
   CheckCircle2,
   XCircle,
   Ban,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-
-// Mock data
-const reservationData = {
-  id: "RES-001",
-  status: "pending" as const,
-  customer: {
-    id: "cust-1",
-    name: "María García",
-    email: "maria@email.com",
-    phone: "+506 8888-1234",
-  },
-  createdAt: "2024-01-15 10:30",
-  expiresAt: "2024-01-17 10:30",
-  items: [
-    {
-      id: "1",
-      productName: "Porcelanato Terrazo Blanco",
-      variant: "60x60",
-      quantity: 5,
-      image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=100&h=100&fit=crop",
-    },
-    {
-      id: "2",
-      productName: "Mármol Calacatta Gold",
-      variant: "80x160",
-      quantity: 8,
-      image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=100&h=100&fit=crop",
-    },
-    {
-      id: "3",
-      productName: "Cerámica Subway Blanca",
-      variant: "10x20",
-      quantity: 2,
-      image: "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=100&h=100&fit=crop",
-    },
-  ],
-  notes: "Cliente solicita entrega lo antes posible. Contactar antes de las 5pm.",
-};
+import {
+  getReservationById,
+  approveReservation,
+  rejectReservation,
+  cancelReservation,
+  type Reservation,
+} from "@/api/reservations";
+import { getUserById } from "@/api/users";
 
 const statusConfig = {
-  pending: { label: "Pendiente", variant: "pending" as const },
-  approved: { label: "Aprobada", variant: "success" as const },
-  rejected: { label: "Rechazada", variant: "destructive" as const },
-  cancelled: { label: "Cancelada", variant: "secondary" as const },
-  expired: { label: "Expirada", variant: "secondary" as const },
+  Pendiente: { label: "Pendiente", variant: "pending" as const, icon: Clock },
+  Aprobada: { label: "Aprobada", variant: "success" as const, icon: CheckCircle2 },
+  Rechazada: { label: "Rechazada", variant: "destructive" as const, icon: XCircle },
+  Cancelada: { label: "Cancelada", variant: "secondary" as const, icon: Ban },
+  Expirada: { label: "Expirada", variant: "secondary" as const, icon: Clock },
 };
 
 const ReservationDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [reservation, setReservation] = useState<Reservation | null>(null);
+  const [customerInfo, setCustomerInfo] = useState<{ name: string; email: string; phone: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionDialog, setActionDialog] = useState<{
+    open: boolean;
+    type: "approve" | "reject" | "cancel" | null;
+  }>({ open: false, type: null });
+  const [adminNotes, setAdminNotes] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleApprove = () => {
-    toast.success(`Reserva ${id} aprobada correctamente`);
+  // Cargar reserva
+  const loadReservation = async () => {
+    if (!id) return;
+    
+    try {
+      setIsLoading(true);
+      const data = await getReservationById(id);
+      setReservation(data);
+      
+      // Cargar información del cliente
+      try {
+        const user = await getUserById(data.user_id);
+        setCustomerInfo({
+          name: user.name || user.email,
+          email: user.email,
+          phone: user.phone || "No proporcionado"
+        });
+      } catch (error) {
+        console.error("Error al cargar usuario:", error);
+        setCustomerInfo({
+          name: "Usuario no encontrado",
+          email: "",
+          phone: ""
+        });
+      }
+    } catch (error) {
+      toast.error("Error al cargar la reserva");
+      console.error(error);
+      navigate("/admin/reservations");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReject = () => {
-    toast.error(`Reserva ${id} rechazada`);
+  useEffect(() => {
+    loadReservation();
+  }, [id]);
+
+  // Abrir diálogo
+  const openActionDialog = (type: "approve" | "reject" | "cancel") => {
+    setActionDialog({ open: true, type });
+    setAdminNotes(reservation?.admin_notes || "");
   };
 
-  const handleCancel = () => {
-    toast.info(`Reserva ${id} cancelada forzosamente`);
+  // Cerrar diálogo
+  const closeActionDialog = () => {
+    setActionDialog({ open: false, type: null });
+    setAdminNotes("");
   };
 
-  const totalUnits = reservationData.items.reduce((sum, item) => sum + item.quantity, 0);
+  // Procesar acción
+  const handleConfirmAction = async () => {
+    if (!id || !actionDialog.type) return;
+
+    try {
+      setIsProcessing(true);
+
+      switch (actionDialog.type) {
+        case "approve":
+          await approveReservation(id, adminNotes || undefined);
+          toast.success("Reserva aprobada correctamente");
+          break;
+        case "reject":
+          if (!adminNotes.trim()) {
+            toast.error("Debes proporcionar un motivo para rechazar");
+            return;
+          }
+          await rejectReservation(id, adminNotes);
+          toast.error("Reserva rechazada");
+          break;
+        case "cancel":
+          await cancelReservation(id);
+          toast.info("Reserva cancelada");
+          break;
+      }
+
+      // Recargar reserva
+      await loadReservation();
+      closeActionDialog();
+    } catch (error) {
+      toast.error("Error al procesar la acción");
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Formatear fecha
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString("es-CR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!reservation) {
+    return (
+      <AdminLayout>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Reserva no encontrada</p>
+          <Button asChild className="mt-4">
+            <Link to="/admin/reservations">Volver a Reservas</Link>
+          </Button>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  const totalUnits = reservation.items.reduce((sum, item) => sum + item.quantity, 0);
+  const StatusIcon = statusConfig[reservation.state]?.icon || Clock;
 
   return (
     <AdminLayout>
@@ -100,175 +203,219 @@ const ReservationDetail = () => {
               </Link>
             </Button>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-display font-bold">{reservationData.id}</h1>
-                <Badge variant={statusConfig[reservationData.status].variant}>
-                  {statusConfig[reservationData.status].label}
+              <h1 className="text-2xl font-display font-bold">
+                Reserva {reservation._id.slice(-8)}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant={statusConfig[reservation.state]?.variant || "secondary"}>
+                  <StatusIcon className="h-3 w-3 mr-1" />
+                  {statusConfig[reservation.state]?.label || reservation.state}
                 </Badge>
+                <span className="text-sm text-muted-foreground">
+                  {reservation.items.length} items • {totalUnits} unidades
+                </span>
               </div>
-              <p className="text-muted-foreground">Detalles de la reserva</p>
             </div>
           </div>
 
-          {reservationData.status === "pending" && (
+          {/* Action Buttons */}
+          {reservation.state === "Pendiente" && (
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleReject}>
+              <Button variant="outline" onClick={() => openActionDialog("reject")} className="text-destructive">
                 <XCircle className="h-4 w-4 mr-2" />
                 Rechazar
               </Button>
-              <Button onClick={handleApprove}>
+              <Button onClick={() => openActionDialog("approve")}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Aprobar
               </Button>
             </div>
           )}
+
+          {(reservation.state === "Pendiente" || reservation.state === "Aprobada") && (
+            <Button variant="outline" onClick={() => openActionDialog("cancel")}>
+              <Ban className="h-4 w-4 mr-2" />
+              Forzar Cancelación
+            </Button>
+          )}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Items */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Productos Reservados</CardTitle>
-                <CardDescription>
-                  {reservationData.items.length} productos • {totalUnits} unidades totales
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Producto</TableHead>
-                      <TableHead>Variante</TableHead>
-                      <TableHead className="text-center">Cantidad</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reservationData.items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={item.image}
-                              alt={item.productName}
-                              className="h-12 w-12 rounded-lg object-cover"
-                            />
-                            <span className="font-medium">{item.productName}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono">{item.variant} cm</TableCell>
-                        <TableCell className="text-center font-medium">{item.quantity}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            {/* Notes */}
-            {reservationData.notes && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Notas</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">{reservationData.notes}</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Customer Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Información del Cliente</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="h-5 w-5 text-primary" />
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Customer Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Información del Cliente</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {customerInfo ? (
+                <>
+                  <div className="flex items-start gap-3">
+                    <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Nombre</p>
+                      <p className="text-sm text-muted-foreground">{customerInfo.name}</p>
+                    </div>
                   </div>
+                  <div className="flex items-start gap-3">
+                    <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Email</p>
+                      <p className="text-sm text-muted-foreground">{customerInfo.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Teléfono</p>
+                      <p className="text-sm text-muted-foreground">{customerInfo.phone}</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Dates */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Fechas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-start gap-3">
+                <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">Creada</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(reservation.created_at)}
+                  </p>
+                </div>
+              </div>
+              {reservation.expires_at && (
+                <div className="flex items-start gap-3">
+                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div>
-                    <p className="font-medium">{reservationData.customer.name}</p>
-                    <Link
-                      to={`/admin/users/${reservationData.customer.id}`}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Ver perfil
-                    </Link>
+                    <p className="text-sm font-medium">Expira</p>
+                    <p className="text-sm text-warning">
+                      {formatDate(reservation.expires_at)}
+                    </p>
                   </div>
                 </div>
-                <Separator />
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a
-                      href={`mailto:${reservationData.customer.email}`}
-                      className="text-primary hover:underline"
-                    >
-                      {reservationData.customer.email}
-                    </a>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <a
-                      href={`tel:${reservationData.customer.phone}`}
-                      className="hover:underline"
-                    >
-                      {reservationData.customer.phone}
-                    </a>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* Dates */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Fechas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3 text-sm">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-muted-foreground">Creada</p>
-                    <p className="font-medium">{reservationData.createdAt}</p>
-                  </div>
+          {/* Notes */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Notas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {reservation.notes && (
+                <div>
+                  <p className="text-sm font-medium mb-1">Cliente:</p>
+                  <p className="text-sm text-muted-foreground">{reservation.notes}</p>
                 </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <Clock className="h-4 w-4 text-warning" />
-                  <div>
-                    <p className="text-muted-foreground">Expira</p>
-                    <p className="font-medium text-warning">{reservationData.expiresAt}</p>
-                  </div>
+              )}
+              {reservation.admin_notes && (
+                <div>
+                  <p className="text-sm font-medium mb-1">Admin:</p>
+                  <p className="text-sm text-muted-foreground">{reservation.admin_notes}</p>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Actions */}
-            {(reservationData.status === "pending" || reservationData.status === "approved") && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Acciones</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    variant="outline"
-                    className="w-full text-destructive hover:text-destructive"
-                    onClick={handleCancel}
-                  >
-                    <Ban className="h-4 w-4 mr-2" />
-                    Forzar Cancelación
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+              )}
+              {!reservation.notes && !reservation.admin_notes && (
+                <p className="text-sm text-muted-foreground">Sin notas</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Items */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Productos Reservados</CardTitle>
+            <CardDescription>
+              {reservation.items.length} productos • {totalUnits} unidades totales
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>Variante</TableHead>
+                  <TableHead className="text-right">Cantidad</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reservation.items.map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{item.variant_name}</TableCell>
+                    <TableCell className="text-right">{item.quantity}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Diálogo de confirmación */}
+      <AlertDialog open={actionDialog.open} onOpenChange={closeActionDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {actionDialog.type === "approve" && "¿Aprobar reserva?"}
+              {actionDialog.type === "reject" && "¿Rechazar reserva?"}
+              {actionDialog.type === "cancel" && "¿Cancelar reserva?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {actionDialog.type === "approve" &&
+                "Esta acción aprobará la reserva y liberará el inventario para el cliente."}
+              {actionDialog.type === "reject" &&
+                "Esta acción rechazará la reserva y devolverá el inventario. Debes proporcionar un motivo."}
+              {actionDialog.type === "cancel" &&
+                "Esta acción cancelará forzadamente la reserva y devolverá el inventario."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {(actionDialog.type === "reject" || actionDialog.type === "approve") && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {actionDialog.type === "reject" ? "Motivo del rechazo *" : "Notas (opcional)"}
+              </label>
+              <Textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                placeholder={
+                  actionDialog.type === "reject"
+                    ? "Explica el motivo del rechazo..."
+                    : "Agrega notas adicionales..."
+                }
+                rows={3}
+              />
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmAction} disabled={isProcessing}>
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                "Confirmar"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

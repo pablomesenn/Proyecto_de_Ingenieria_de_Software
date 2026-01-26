@@ -1,20 +1,46 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const Login = () => {
+  const navigate = useNavigate();
+  const { login, isAdmin } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement login logic
-    console.log("Login attempt:", { email });
+    
+    try {
+      setIsLoading(true);
+      const result = await login(email, password);
+      
+      if (result.success) {
+        toast.success("Sesión iniciada correctamente");
+        
+        // Redirigir según el rol
+        if (result.role === "admin") {
+          navigate("/admin");
+        } else {
+          navigate("/catalog");
+        }
+      } else {
+        toast.error("Credenciales inválidas");
+      }
+    } catch (error) {
+      toast.error("Error al iniciar sesión");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -52,6 +78,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -76,6 +103,7 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
@@ -87,8 +115,8 @@ const Login = () => {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" size="lg">
-                Iniciar Sesión
+              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                {isLoading ? "Iniciando..." : "Iniciar Sesión"}
               </Button>
             </form>
 

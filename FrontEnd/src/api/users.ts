@@ -1,4 +1,4 @@
-import { apiGet } from "./http";
+import { apiGet, apiPut } from "./http";
 
 type BackendUser = {
   _id: string;
@@ -27,7 +27,7 @@ export async function fetchUsers(): Promise<UiUser[]> {
   return data.users.map((u) => {
     const role = u.role === "ADMIN" ? "admin" : "customer";
     const isActive = (u.state ?? "activo") === "activo";
-    const createdAt = u.created_at ? u.created_at.slice(0, 10) : "—";
+    const createdAt = u.created_at ? u.created_at.slice(0, 10) : "â€”";
 
     return {
       id: u._id,
@@ -40,4 +40,43 @@ export async function fetchUsers(): Promise<UiUser[]> {
       createdAt,
     };
   });
+}
+
+// Obtener perfil del usuario autenticado
+export async function getProfile() {
+  const data = await apiGet<BackendUser>("/api/users/profile");
+  
+  return {
+    id: data._id,
+    email: data.email,
+    name: data.name || "",
+    phone: data.phone || "",
+    role: data.role === "ADMIN" ? "admin" : "customer",
+  };
+}
+
+// Actualizar perfil del usuario
+export async function updateProfile(profileData: { name?: string; phone?: string }) {
+  const data = await apiPut<{ message: string; user: BackendUser }>("/api/users/profile", profileData);
+  
+  return {
+    id: data.user._id,
+    email: data.user.email,
+    name: data.user.name || "",
+    phone: data.user.phone || "",
+    role: data.user.role === "ADMIN" ? "admin" : "customer",
+  };
+}
+
+// Obtener usuario por ID (para admins)
+export async function getUserById(userId: string) {
+  const data = await apiGet<BackendUser>(`/api/users/${userId}`);
+  
+  return {
+    id: data._id,
+    email: data.email,
+    name: data.name || "",
+    phone: data.phone || "",
+    role: data.role === "ADMIN" ? "admin" : "customer",
+  };
 }
