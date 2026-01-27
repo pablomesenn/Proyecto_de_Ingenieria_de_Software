@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+from io import BytesIO
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.services.reservation_service import ReservationService
 from app.services.notification_service import NotificationService
@@ -12,6 +13,8 @@ from marshmallow import ValidationError
 from app.constants.roles import UserRole
 from bson import ObjectId
 import logging
+import csv
+from openpyxl import Workbook
 
 logger = logging.getLogger(__name__)
 
@@ -353,3 +356,36 @@ def cancel_reservation(reservation_id):
     except Exception as e:
         logger.error(f"Error cancelando reserva: {str(e)}")
         return jsonify({'error': 'Error interno del servidor'}), 500
+
+@reservations_bp.route('/export', methods=['GET'])
+@jwt_required()
+@require_role(UserRole.ADMIN)
+def export_reservations():
+    """
+    Exporta reservas en CSV o XLSX.
+    Query params:
+      - format: csv | xlsx
+      - state: opcional
+      - date_from: YYYY-MM-DD opcional
+      - date_to: YYYY-MM-DD opcional
+    """
+    fmt = (request.args.get("format") or "csv").lower()
+    state = request.args.get("state") or None
+    date_from = request.args.get("date_from") or None
+    date_to = request.args.get("date_to") or None
+
+    service = ReservationService()
+
+    file_bytes, mimetype, filename = service.export_reservations(
+        fmt=fmt,
+        state=state,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    return send_file(
+        BytesIO(file_bytes),
+        mimetype=mimetype,
+        as_attachment=True,
+        download_name=filename
+    )

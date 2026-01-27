@@ -5,43 +5,91 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { FileDown, FileSpreadsheet, Table } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileDown, FileSpreadsheet, Table, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { exportReservations } from "@/api/reservations";
 
 const Export = () => {
-  const [format, setFormat] = useState<"csv" | "excel">("excel");
+  // Formato correcto para backend: "xlsx" | "csv"
+  const [format, setFormat] = useState<"xlsx" | "csv">("xlsx");
+
+  // Filtros del CU-19
+  const [state, setState] = useState<string>("all"); // "all" = sin filtro
+  const [dateFrom, setDateFrom] = useState<string>(""); // YYYY-MM-DD
+  const [dateTo, setDateTo] = useState<string>("");     // YYYY-MM-DD
+
+  // Checkboxes (no aplican a reservas, pero los dejamos para no romper la UI)
+  const [includeStock, setIncludeStock] = useState(false);
   const [includeImages, setIncludeImages] = useState(false);
-  const [includeStock, setIncludeStock] = useState(true);
   const [includeInactive, setIncludeInactive] = useState(false);
 
-  const handleExport = () => {
-    toast.success(`Exportando catálogo en formato ${format.toUpperCase()}...`);
+  const [loading, setLoading] = useState(false);
+
+  const onExport = async () => {
+    try {
+      setLoading(true);
+
+      // Validación simple de fechas
+      if (dateFrom && dateTo && dateFrom > dateTo) {
+        toast.error("El rango de fechas no es válido: 'Desde' no puede ser mayor que 'Hasta'.");
+        return;
+      }
+
+      await exportReservations({
+        format,
+        state: state === "all" ? undefined : state,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      });
+
+      toast.success(`Exportación generada (${format.toUpperCase()}).`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message ?? "No se pudo exportar. Revise consola/servidor.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <AdminLayout>
       <div className="space-y-6 max-w-2xl">
         <div>
-          <h1 className="text-2xl font-display font-bold">Exportar Catálogo</h1>
-          <p className="text-muted-foreground">Descarga el catálogo de productos en formato CSV o Excel</p>
+          <h1 className="text-2xl font-display font-bold">Exportar Reservas</h1>
+          <p className="text-muted-foreground">
+            Descarga las reservas en formato CSV o Excel (con filtros opcionales)
+          </p>
         </div>
 
+        {/* Formato */}
         <Card>
           <CardHeader>
             <CardTitle>Formato de Exportación</CardTitle>
             <CardDescription>Selecciona el formato del archivo</CardDescription>
           </CardHeader>
           <CardContent>
-            <RadioGroup value={format} onValueChange={(v) => setFormat(v as "csv" | "excel")}>
-              <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50" onClick={() => setFormat("excel")}>
-                <RadioGroupItem value="excel" id="excel" />
+            <RadioGroup
+              value={format}
+              onValueChange={(v) => setFormat(v as "xlsx" | "csv")}
+            >
+              <div
+                className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50"
+                onClick={() => setFormat("xlsx")}
+              >
+                <RadioGroupItem value="xlsx" id="xlsx" />
                 <FileSpreadsheet className="h-5 w-5 text-success" />
-                <Label htmlFor="excel" className="cursor-pointer flex-1">
+                <Label htmlFor="xlsx" className="cursor-pointer flex-1">
                   <p className="font-medium">Excel (.xlsx)</p>
                   <p className="text-sm text-muted-foreground">Formato completo con múltiples hojas</p>
                 </Label>
               </div>
-              <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 mt-2" onClick={() => setFormat("csv")}>
+
+              <div
+                className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 mt-2"
+                onClick={() => setFormat("csv")}
+              >
                 <RadioGroupItem value="csv" id="csv" />
                 <Table className="h-5 w-5 text-primary" />
                 <Label htmlFor="csv" className="cursor-pointer flex-1">
@@ -53,30 +101,63 @@ const Export = () => {
           </CardContent>
         </Card>
 
+        {/* Filtros de reservas (CU-19) */}
         <Card>
           <CardHeader>
-            <CardTitle>Opciones de Exportación</CardTitle>
-            <CardDescription>Personaliza qué datos incluir</CardDescription>
+            <CardTitle>Filtros</CardTitle>
+            <CardDescription>Filtra por estado y/o rango de fechas</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <Checkbox id="stock" checked={includeStock} onCheckedChange={(c) => setIncludeStock(c === true)} />
-              <Label htmlFor="stock" className="cursor-pointer">Incluir información de stock</Label>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Estado</Label>
+              <Select value={state} onValueChange={setState}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {/* Ajusta estos valores a los que use tu backend */}
+                  <SelectItem value="Pendiente">Pendiente</SelectItem>
+                  <SelectItem value="Aprobada">Aprobada</SelectItem>
+                  <SelectItem value="Rechazada">Rechazada</SelectItem>
+                  <SelectItem value="Cancelada">Cancelada</SelectItem>
+                  <SelectItem value="Expirada">Expirada</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox id="images" checked={includeImages} onCheckedChange={(c) => setIncludeImages(c === true)} />
-              <Label htmlFor="images" className="cursor-pointer">Incluir URLs de imágenes</Label>
+
+            <div className="space-y-2">
+              <Label>Desde</Label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
             </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox id="inactive" checked={includeInactive} onCheckedChange={(c) => setIncludeInactive(c === true)} />
-              <Label htmlFor="inactive" className="cursor-pointer">Incluir productos inactivos</Label>
+
+            <div className="space-y-2">
+              <Label>Hasta</Label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
             </div>
           </CardContent>
         </Card>
 
-        <Button size="lg" className="w-full" onClick={handleExport}>
-          <FileDown className="h-5 w-5 mr-2" />
-          Exportar Catálogo
+        <Button size="lg" className="w-full" onClick={onExport} disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              Exportando...
+            </>
+          ) : (
+            <>
+              <FileDown className="h-5 w-5 mr-2" />
+              Exportar Reservas
+            </>
+          )}
         </Button>
       </div>
     </AdminLayout>

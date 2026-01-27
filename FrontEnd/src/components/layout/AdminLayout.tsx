@@ -42,7 +42,7 @@ const navigation = [
   { name: "Inventario", href: "/admin/inventory", icon: Warehouse },
   { name: "Reservas", href: "/admin/reservations", icon: CalendarClock },
   { name: "Usuarios", href: "/admin/users", icon: Users },
-  { name: "Exportar Catálogo", href: "/admin/export", icon: FileDown },
+  { name: "Exportar Reservas", href: "/admin/export", icon: FileDown },
 ];
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {

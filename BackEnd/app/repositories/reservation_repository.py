@@ -2,7 +2,7 @@
 Reservation Repository with proper lazy database loading
 This prevents creating new connections on every instantiation
 """
-from datetime import datetime
+from datetime import datetime, time
 from bson import ObjectId
 from app.config.database import get_db
 from app.models.reservation import Reservation
@@ -144,3 +144,127 @@ class ReservationRepository:
             'state': {'$in': [ReservationState.PENDING, ReservationState.APPROVED]}
         }
         return self.collection.count_documents(query)
+
+    def find_for_export(self, state=None, date_from=None, date_to=None):
+        """
+        Retorna reservas para exportar (sin paginación).
+        date_from/date_to: strings "YYYY-MM-DD" (opcionales)
+        """
+        query = {}
+
+        if state:
+            query["state"] = state
+
+        if date_from or date_to:
+            created_filter = {}
+            if date_from:
+                # 00:00:00
+                dfrom = datetime.strptime(date_from, "%Y-%m-%d")
+                created_filter["$gte"] = datetime.combine(dfrom.date(), time.min)
+            if date_to:
+                # 23:59:59.999999
+                dto = datetime.strptime(date_to, "%Y-%m-%d")
+                created_filter["$lte"] = datetime.combine(dto.date(), time.max)
+
+            query["created_at"] = created_filter
+
+        cursor = self.collection.find(query).sort("created_at", -1)
+        return list(cursor)
+    
+    def get_export_rows(self, filters=None):
+        """
+        Retorna filas planas para export (una fila por item de reserva)
+        filters:
+          - state: str | None
+          - date_from: datetime | None
+          - date_to: datetime | None
+        """
+        filters = filters or {}
+        match = {}
+
+        state = filters.get("state")
+        date_from = filters.get("date_from")  # datetime | None
+        date_to = filters.get("date_to")      # datetime | None
+
+        if state:
+            match["state"] = state
+
+        if date_from or date_to:
+            created_filter = {}
+            if date_from:
+                created_filter["$gte"] = date_from
+            if date_to:
+                created_filter["$lte"] = date_to
+            match["created_at"] = created_filter
+
+        pipeline = [
+            {"$match": match},
+
+            # Un item por fila
+            {"$unwind": {"path": "$items", "preserveNullAndEmptyArrays": False}},
+
+            # Normalizar user_id a string para lookup robusto (user_id puede ser ObjectId o string)
+            {"$addFields": {
+                "user_id_str": {"$toString": "$user_id"},
+                "variant_id_str": {"$toString": "$items.variant_id"},
+                "reservation_id_str": {"$toString": "$_id"},
+            }},
+
+            # Lookup user por comparación string($_id) == user_id_str
+            {"$lookup": {
+                "from": "users",
+                "let": {"uid": "$user_id_str"},
+                "pipeline": [
+                    {"$match": {"$expr": {"$eq": [{"$toString": "$_id"}, "$$uid"]}}}
+                ],
+                "as": "user"
+            }},
+            {"$unwind": {"path": "$user", "preserveNullAndEmptyArrays": True}},
+
+            # Lookup variant por comparación string($_id) == variant_id_str
+            {"$lookup": {
+                "from": "variants",
+                "let": {"vid": "$variant_id_str"},
+                "pipeline": [
+                    {"$match": {"$expr": {"$eq": [{"$toString": "$_id"}, "$$vid"]}}}
+                ],
+                "as": "variant"
+            }},
+            {"$unwind": {"path": "$variant", "preserveNullAndEmptyArrays": True}},
+
+            # Lookup product desde variant.product_id (puede ser ObjectId normalmente)
+            {"$lookup": {
+                "from": "products",
+                "localField": "variant.product_id",
+                "foreignField": "_id",
+                "as": "product"
+            }},
+            {"$unwind": {"path": "$product", "preserveNullAndEmptyArrays": True}},
+
+            # Proyección final (campos export)
+            {"$project": {
+                "_id": 0,
+                "reservation_id": "$reservation_id_str",
+                "state": 1,
+                "created_at": 1,
+
+                "user_name": {"$ifNull": ["$user.nombre", {"$ifNull": ["$user.name", ""]}]},
+                "user_email": {"$ifNull": ["$user.email", ""]},
+
+                "product_name": {"$ifNull": ["$product.nombre", ""]},
+
+                # Variante: intenta varios campos típicos
+                "variant_name": {
+                    "$ifNull": [
+                        "$variant.tamano_pieza",
+                        {"$ifNull": ["$variant.nombre", {"$ifNull": ["$variant.name", ""]}]}
+                    ]
+                },
+
+                "quantity": {"$ifNull": ["$items.quantity", 0]},
+            }},
+
+            {"$sort": {"created_at": -1}},
+        ]
+
+        return list(self.collection.aggregate(pipeline))

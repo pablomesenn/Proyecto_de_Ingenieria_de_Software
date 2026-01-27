@@ -1,11 +1,15 @@
-from datetime import datetime
 from app.repositories.reservation_repository import ReservationRepository
 from app.repositories.inventory_repository import InventoryRepository
 from app.repositories.notification_repository import NotificationRepository
 from app.services.notification_service import NotificationService
 from app.constants.states import ReservationState
 from app.models.reservation import Reservation
+from app.config.database import get_db
 from bson import ObjectId
+from datetime import datetime, timedelta
+from io import BytesIO
+import csv
+from openpyxl import Workbook
 import logging
 
 logger = logging.getLogger(__name__)
@@ -246,3 +250,113 @@ class ReservationService:
         }
 
         db.audit_logs.insert_one(audit_log)
+    
+    def export_reservations(self, fmt="csv", state=None, date_from=None, date_to=None):
+
+        filters = {
+            "state": state,
+            "date_from": self._parse_date_start(date_from),
+            "date_to": self._parse_date_end(date_to),
+        }
+
+        rows = self.reservation_repo.get_export_rows(filters=filters)
+
+        if fmt not in ("csv", "xlsx"):
+            fmt = "csv"
+
+        if fmt == "csv":
+            content = self._build_csv(rows)
+            filename = f"reservas-{datetime.utcnow().date().isoformat()}.csv"
+            return content, "text/csv; charset=utf-8", filename
+
+        content = self._build_xlsx(rows)
+        filename = f"reservas-{datetime.utcnow().date().isoformat()}.xlsx"
+        return content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename
+
+    def _parse_date_start(self, s):
+        if not s:
+            return None
+        # YYYY-MM-DD -> 00:00:00
+        d = datetime.fromisoformat(s)
+        return datetime(d.year, d.month, d.day)
+
+    def _parse_date_end(self, s):
+        if not s:
+            return None
+        # YYYY-MM-DD -> 23:59:59
+        d = datetime.fromisoformat(s)
+        return datetime(d.year, d.month, d.day) + timedelta(days=1) - timedelta(seconds=1)
+
+    def _build_csv(self, rows):
+        out = BytesIO()
+        # csv necesita texto: usamos write en str y luego encode
+        from io import StringIO
+        sio = StringIO()
+        w = csv.writer(sio)
+
+        w.writerow([
+            "reservation_id", "state", "created_at",
+            "user_name", "user_email",
+            "product_name", "variant_name", "quantity"
+        ])
+
+        for r in rows:
+            w.writerow([
+                r.get("reservation_id", ""),
+                r.get("state", ""),
+                r.get("created_at", ""),
+                r.get("user_name", ""),
+                r.get("user_email", ""),
+                r.get("product_name", ""),
+                r.get("variant_name", ""),
+                r.get("quantity", ""),
+            ])
+
+        out.write(sio.getvalue().encode("utf-8"))
+        return out.getvalue()
+
+    def _build_xlsx(self, rows):
+        wb = Workbook()
+
+        # Sheet 1: Reservas (resumen)
+        ws1 = wb.active
+        ws1.title = "Reservas"
+        ws1.append(["reservation_id", "state", "created_at", "user_name", "user_email", "items_count", "total_qty"])
+
+        summary = {}
+        for r in rows:
+            rid = r.get("reservation_id")
+            if not rid:
+                continue
+            if rid not in summary:
+                summary[rid] = {
+                    "state": r.get("state", ""),
+                    "created_at": r.get("created_at", ""),
+                    "user_name": r.get("user_name", ""),
+                    "user_email": r.get("user_email", ""),
+                    "items_count": 0,
+                    "total_qty": 0,
+                }
+            summary[rid]["items_count"] += 1
+            try:
+                summary[rid]["total_qty"] += int(r.get("quantity") or 0)
+            except Exception:
+                pass
+
+        for rid, s in summary.items():
+            ws1.append([rid, s["state"], s["created_at"], s["user_name"], s["user_email"], s["items_count"], s["total_qty"]])
+
+        # Sheet 2: Items (detalle)
+        ws2 = wb.create_sheet("Items")
+        ws2.append(["reservation_id", "product_name", "variant_name", "quantity"])
+        for r in rows:
+            ws2.append([
+                r.get("reservation_id", ""),
+                r.get("product_name", ""),
+                r.get("variant_name", ""),
+                r.get("quantity", ""),
+            ])
+
+        bio = BytesIO()
+        wb.save(bio)
+        return bio.getvalue()

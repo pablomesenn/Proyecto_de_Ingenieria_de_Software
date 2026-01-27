@@ -187,3 +187,26 @@ export async function apiDelete<T>(path: string): Promise<T> {
 
   return res.json() as Promise<T>;
 }
+
+// src/api/http.ts
+export async function apiDownload(path: string): Promise<{ blob: Blob; filename: string | null }> {
+  const res = await fetchWithAuth(`${API_URL}${path}`, { method: "GET" });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+
+  const blob = await res.blob();
+
+  const cd = res.headers.get("content-disposition") || res.headers.get("Content-Disposition");
+  let filename: string | null = null;
+
+  if (cd) {
+    // Content-Disposition: attachment; filename="reservas-2026-01-27.xlsx"
+    const match = cd.match(/filename\*?=(?:UTF-8''|")?([^\";]+)\"?/i);
+    if (match?.[1]) filename = decodeURIComponent(match[1]);
+  }
+
+  return { blob, filename };
+}

@@ -109,6 +109,28 @@ const InventoryHistory = () => {
           variant_id: variantId.trim() ? variantId.trim() : undefined,
         });
 
+        console.log("[InventoryHistory] RAW response:", res);
+        console.log("[InventoryHistory] movements length:", res?.movements?.length);
+
+        // Ver primeros 3 movimientos completos
+        console.log("[InventoryHistory] first 3 movements:", (res?.movements ?? []).slice(0, 3));
+
+        // Ver SOLO campos clave (stock_before/after y nombres)
+        console.table(
+          (res?.movements ?? []).slice(0, 10).map((m: any) => ({
+            id: m._id,
+            type: m.movement_type,
+            qty: m.quantity,
+            before: m.stock_before,
+            after: m.stock_after,
+            product: m.product_name,
+            variantName: m.variant_name,
+            actor: m.actor_name,
+            created: m.creado_en,
+            reason: m.reason,
+          }))
+        );
+
         setMovements(res.movements ?? []);
       } catch (err) {
         console.error(err);
@@ -149,7 +171,7 @@ const InventoryHistory = () => {
             (m.product_name ?? "").toLowerCase().includes(q) ||
             (m.variant_id ?? "").toLowerCase().includes(q) ||
             (m.reason ?? "").toLowerCase().includes(q) ||
-            (m.actor_name ?? "").toLowerCase().includes(q)
+            (m.actor_name ?? "Pisos Kermy").toLowerCase().includes(q)
           );
 
       // fechas (usa creado_en)
@@ -192,7 +214,7 @@ const InventoryHistory = () => {
           String(m.stock_before ?? ""),
           String(m.stock_after ?? ""),
           m.reason ?? "",
-          m.actor_name ?? "",
+          m.actor_name ?? "Pisos Kermy",
         ];
       }),
     ];
@@ -473,7 +495,7 @@ const InventoryHistory = () => {
                         </TableCell>
 
                         <TableCell className="text-sm text-muted-foreground">
-                          {m.actor_name ?? "—"}
+                          {m.actor_name ?? "Pisos Kermy"}
                         </TableCell>
                       </TableRow>
                     );

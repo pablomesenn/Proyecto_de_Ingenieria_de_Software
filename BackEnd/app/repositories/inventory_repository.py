@@ -200,13 +200,14 @@ class InventoryRepository:
         self._log_movement(
             variant_id=inventory.variant_id,
             quantity=inventory.stock_total,
-            movement_type='initial',
-            reason='initial_stock',
+            movement_type="initial",
+            reason="initial_stock",
+            actor_id=None,
             before=before,
             after=after
         )
 
-        return self.collection.find_one({'_id': result.inserted_id})
+        return self.collection.find_one({"_id": result.inserted_id})
 
     def update_stock_total(self, variant_id, new_stock_total):
         result = self.collection.update_one(
@@ -249,6 +250,7 @@ class InventoryRepository:
                 quantity=quantity,
                 movement_type='retain',
                 reason=reason,
+                actor_id=None,
                 before=before,
                 after=after
             )
@@ -284,6 +286,7 @@ class InventoryRepository:
                 quantity=-quantity,
                 movement_type='release',
                 reason=reason,
+                actor_id=None, 
                 before=before,
                 after=after
             )
@@ -329,18 +332,57 @@ class InventoryRepository:
             )
 
         return result.modified_count > 0
+    
+    def _to_object_id(self, value):
+        """Convierte string/ObjectId a ObjectId de forma segura."""
+        if value is None:
+            return None
+        if isinstance(value, ObjectId):
+            return value
+        try:
+            return ObjectId(str(value))
+        except Exception:
+            return None
 
-    def _log_movement(self, variant_id, quantity, movement_type, reason, actor_id=None):
-        """Registra un movimiento de inventario en la bitácora"""
+    def _snapshot(self, variant_id):
+        """Snapshot del inventario para logs (total, retenido, disponible)."""
+        inv = self.find_by_variant_id(str(variant_id))
+        if not inv:
+            return {"total": 0, "retained": 0, "available": 0}
+
+        total = int(inv.get("stock_total", 0) or 0)
+        retained = int(inv.get("stock_retenido", 0) or 0)
+        available = max(0, total - retained)
+
+        return {"total": total, "retained": retained, "available": available}
+
+
+    def _log_movement(self, variant_id, quantity, movement_type, reason, actor_id=None, before=None, after=None):
+        """Registra un movimiento de inventario en la bitácora, incluyendo snapshot."""
+        before = before or self._snapshot(variant_id)
+        after = after or self._snapshot(variant_id)
+
         movement = {
-            'variant_id': ObjectId(variant_id),
-            'quantity': quantity,
-            'movement_type': movement_type,
-            'reason': reason,
-            'actor_id': ObjectId(actor_id) if actor_id else None,
-            'creado_en': datetime.utcnow()
+            "variant_id": ObjectId(str(variant_id)),
+            "quantity": int(quantity),
+            "movement_type": movement_type,
+            "reason": reason,
+            "actor_id": ObjectId(actor_id) if actor_id else None,
+            "creado_en": datetime.utcnow(),
+
+            # Lo que el front está leyendo:
+            "stock_before": before.get("available", 0),
+            "stock_after": after.get("available", 0),
+
+            # Extra (útil para futuro):
+            "stock_total_before": before.get("total", 0),
+            "stock_total_after": after.get("total", 0),
+            "stock_retenido_before": before.get("retained", 0),
+            "stock_retenido_after": after.get("retained", 0),
         }
+
         self.movements_collection.insert_one(movement)
+
 
     def get_movements(self, variant_id=None, movement_type=None, skip=0, limit=50):
         """Obtiene el historial de movimientos"""

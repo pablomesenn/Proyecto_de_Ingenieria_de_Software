@@ -1,4 +1,4 @@
-import { apiGet, apiPut, apiPost } from "./http";
+import { apiGet, apiPut, apiPost, apiDownload } from "./http";
 
 // Tipos
 export type ReservationState = "Pendiente" | "Aprobada" | "Rechazada" | "Cancelada" | "Expirada";
@@ -69,4 +69,31 @@ export async function rejectReservation(id: string, adminNotes: string): Promise
 // Cancelar reserva
 export async function cancelReservation(id: string): Promise<ReservationResponse> {
   return apiPut<ReservationResponse>(`/api/reservations/${id}/cancel`);
+}
+
+export type ExportReservationsParams = {
+  format: "csv" | "xlsx";
+  state?: string;
+  date_from?: string; // YYYY-MM-DD
+  date_to?: string;   // YYYY-MM-DD
+};
+
+export async function exportReservations(params: ExportReservationsParams) {
+  const qs = new URLSearchParams();
+  qs.set("format", params.format);
+
+  if (params.state) qs.set("state", params.state);
+  if (params.date_from) qs.set("date_from", params.date_from);
+  if (params.date_to) qs.set("date_to", params.date_to);
+
+  const { blob, filename } = await apiDownload(`/api/reservations/export?${qs.toString()}`);
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || `reservas.${params.format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
