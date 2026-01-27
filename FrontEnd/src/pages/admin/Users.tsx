@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
+import { fetchUsers, createUser, deleteUser, updateUser, type UiUser } from "@/api/users";
 import {
   Table,
   TableBody,
@@ -53,59 +54,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-// Mock data
-const users = [
-  {
-    id: "1",
-    name: "María García",
-    email: "maria@email.com",
-    phone: "+506 8888-1234",
-    role: "customer" as const,
-    isActive: true,
-    reservationsCount: 5,
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Carlos López",
-    email: "carlos@email.com",
-    phone: "+506 7777-5678",
-    role: "customer" as const,
-    isActive: true,
-    reservationsCount: 3,
-    createdAt: "2024-01-10",
-  },
-  {
-    id: "3",
-    name: "Administrador",
-    email: "admin@pisoskermy.com",
-    phone: "+506 2643-1234",
-    role: "admin" as const,
-    isActive: true,
-    reservationsCount: 0,
-    createdAt: "2024-01-01",
-  },
-  {
-    id: "4",
-    name: "Ana Martínez",
-    email: "ana@email.com",
-    phone: "+506 6666-9012",
-    role: "customer" as const,
-    isActive: false,
-    reservationsCount: 8,
-    createdAt: "2023-12-20",
-  },
-  {
-    id: "5",
-    name: "Pedro Sánchez",
-    email: "pedro@email.com",
-    phone: null,
-    role: "customer" as const,
-    isActive: true,
-    reservationsCount: 1,
-    createdAt: "2024-01-08",
-  },
-];
+
 
 const roleConfig = {
   admin: { label: "Administrador", icon: Shield, color: "text-primary" },
@@ -113,6 +62,14 @@ const roleConfig = {
 };
 
 const UsersPage = () => {
+  const [users, setUsers] = useState<UiUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UiUser | null>(null);
+
+
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -122,47 +79,198 @@ const UsersPage = () => {
     email: "",
     phone: "",
     role: "customer" as "admin" | "customer",
+    password: "",
   });
 
-  const filteredUsers = users.filter((user) => {
-    if (
-      searchQuery &&
-      !user.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !user.email.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
-      return false;
-    }
-    if (roleFilter !== "all" && user.role !== roleFilter) {
-      return false;
-    }
-    if (statusFilter === "active" && !user.isActive) {
-      return false;
-    }
-    if (statusFilter === "inactive" && user.isActive) {
-      return false;
-    }
-    return true;
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<UiUser | null>(null);
+
+  const [editUserData, setEditUserData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "customer" as "admin" | "customer",
+    isActive: true,
+    password: "",
   });
 
-  const handleCreateUser = () => {
-    if (!newUserData.name || !newUserData.email) {
+  
+  useEffect(() => {
+    async function loadUsers() {
+      try {
+        setLoading(true);
+        const data = await fetchUsers();
+        setUsers(data);
+        setError(null);
+      } catch (err) {
+        console.error(err);
+        setError("No se pudieron cargar los usuarios");
+        toast.error("Error cargando usuarios (verifica sesión ADMIN)");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadUsers();
+  }, []);
+
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      if (
+        searchQuery &&
+        !user.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      ) {
+        return false;
+      }
+
+      if (roleFilter !== "all" && user.role !== roleFilter) {
+        return false;
+      }
+
+      if (statusFilter === "active" && !user.isActive) {
+        return false;
+      }
+
+      if (statusFilter === "inactive" && user.isActive) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [users, searchQuery, roleFilter, statusFilter]);
+
+
+  const handleCreateUser = async () => {
+    if (!newUserData.name || !newUserData.email || !newUserData.password) {
+      toast.error("Nombre, email y contraseña son requeridos");
+      return;
+    }
+
+    try {
+      const created = await createUser({
+        name: newUserData.name,
+        email: newUserData.email,
+        phone: newUserData.phone,
+        role: newUserData.role,
+        password: newUserData.password,
+      });
+
+      // Insertar arriba en la tabla (o al final, como prefieras)
+      setUsers((prev) => [created, ...prev]);
+
+      toast.success("Usuario creado correctamente");
+      setDialogOpen(false);
+      setNewUserData({ name: "", email: "", phone: "", role: "customer", password: "" });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message ?? "No se pudo crear el usuario");
+    }
+  };
+
+
+  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+      try {
+    const updated = await updateUser(userId, { isActive: !currentStatus });
+
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+
+        toast.success(!currentStatus ? "Usuario activado correctamente" : "Usuario desactivado correctamente");
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err?.message ?? "No se pudo actualizar el estado");
+      }
+};
+
+  const openDeleteDialog = (user: UiUser) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+};
+
+  const closeDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setUserToDelete(null);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    try {
+      await deleteUser(userToDelete.id);
+
+      // Backend desactiva -> reflejamos en UI
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userToDelete.id ? { ...u, isActive: false } : u))
+      );
+
+      toast.success("Usuario desactivado correctamente");
+      closeDeleteDialog();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message ?? "No se pudo eliminar el usuario");
+    }
+};
+
+  const openEditDialog = (user: UiUser) => {
+    setUserToEdit(user);
+    setEditUserData({
+      name: user.name ?? "",
+      email: user.email ?? "",
+      phone: user.phone ?? "",
+      role: user.role,
+      isActive: user.isActive,
+      password: "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const closeEditDialog = () => {
+    setEditDialogOpen(false);
+    setUserToEdit(null);
+    setEditUserData({
+      name: "",
+      email: "",
+      phone: "",
+      role: "customer",
+      isActive: true,
+      password: "",
+    });
+  };
+
+  const handleUpdateUser = async () => {
+    if (!userToEdit) return;
+
+    if (!editUserData.name.trim() || !editUserData.email.trim()) {
       toast.error("Nombre y email son requeridos");
       return;
     }
-    toast.success("Usuario creado correctamente");
-    setDialogOpen(false);
-    setNewUserData({ name: "", email: "", phone: "", role: "customer" });
-  };
 
-  const handleToggleStatus = (userId: string, currentStatus: boolean) => {
-    toast.success(
-      currentStatus ? "Usuario desactivado correctamente" : "Usuario activado correctamente"
-    );
-  };
+    try {
+      const updated = await updateUser(userToEdit.id, {
+        name: editUserData.name.trim(),
+        email: editUserData.email.trim(),
+        phone: editUserData.phone.trim() || null,
+        role: editUserData.role,
+        isActive: editUserData.isActive,
+        password: editUserData.password.trim() || undefined, // solo si se llenó
+      });
 
-  const handleDeleteUser = (userId: string) => {
-    toast.success("Usuario eliminado correctamente");
-  };
+      // Reemplazar en lista local
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)));
+
+      toast.success("Usuario actualizado correctamente");
+      closeEditDialog();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message ?? "No se pudo actualizar el usuario");
+    }
+};
+
+
+
+
+
 
   return (
     <AdminLayout>
@@ -208,6 +316,16 @@ const UsersPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="password">Contraseña *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newUserData.password}
+                    onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+                    placeholder="Mín. 10 caracteres y 1 especial"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="phone">Teléfono</Label>
                   <Input
                     id="phone"
@@ -243,6 +361,130 @@ const UsersPage = () => {
             </DialogContent>
           </Dialog>
         </div>
+
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Desactivar Usuario</DialogTitle>
+              <DialogDescription>
+                {userToDelete ? (
+                  <>
+                    Se desactivará el usuario{" "}
+                    <span className="font-medium">{userToDelete.name}</span> (
+                    {userToDelete.email}). Esta acción no elimina el registro, solo lo
+                    deja inactivo.
+                  </>
+                ) : (
+                  "Esta acción no se puede deshacer."
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={closeDeleteDialog}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteUser}>
+                Desactivar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Usuario</DialogTitle>
+              <DialogDescription>
+                Modifica los datos del usuario. Si no se ingresa contraseña, no se modifica.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nombre Completo *</Label>
+                <Input
+                  id="edit-name"
+                  value={editUserData.name}
+                  onChange={(e) => setEditUserData({ ...editUserData, name: e.target.value })}
+                  placeholder="Nombre del usuario"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email *</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editUserData.email}
+                  onChange={(e) => setEditUserData({ ...editUserData, email: e.target.value })}
+                  placeholder="email@ejemplo.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Teléfono</Label>
+                <Input
+                  id="edit-phone"
+                  value={editUserData.phone}
+                  onChange={(e) => setEditUserData({ ...editUserData, phone: e.target.value })}
+                  placeholder="+506 0000-0000"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Rol</Label>
+                <Select
+                  value={editUserData.role}
+                  onValueChange={(value) =>
+                    setEditUserData({ ...editUserData, role: value as "admin" | "customer" })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="customer">Cliente</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={editUserData.isActive}
+                    onCheckedChange={(checked) => setEditUserData({ ...editUserData, isActive: checked })}
+                  />
+                  <span className="text-sm">{editUserData.isActive ? "Activo" : "Inactivo"}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-password">Nueva Contraseña</Label>
+                <Input
+                  id="edit-password"
+                  type="password"
+                  value={editUserData.password}
+                  onChange={(e) => setEditUserData({ ...editUserData, password: e.target.value })}
+                  placeholder="Opcional (mín. 10 y 1 especial)"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={closeEditDialog}>
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdateUser}>
+                Guardar Cambios
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
 
         {/* Filters */}
         <Card>
@@ -298,7 +540,19 @@ const UsersPage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.length === 0 ? (
+                {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                    Cargando usuarios...
+                  </TableCell>
+                </TableRow>
+                ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-destructive">
+                    Error cargando usuarios. Verificar token ADMIN.
+                  </TableCell>
+                </TableRow>
+                ) : filteredUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -362,7 +616,7 @@ const UsersPage = () => {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="cursor-pointer">
+                              <DropdownMenuItem onClick={() => openEditDialog(user)} className="cursor-pointer">
                                 <Edit className="h-4 w-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
@@ -370,7 +624,7 @@ const UsersPage = () => {
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
-                                    onClick={() => handleDeleteUser(user.id)}
+                                    onClick={() => openDeleteDialog(user)}
                                     className="text-destructive cursor-pointer"
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />

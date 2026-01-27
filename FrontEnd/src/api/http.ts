@@ -1,24 +1,26 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+// src/api/http.ts
+const API_URL = import.meta.env.VITE_API_URL as string;
 
 function getAccessToken(): string | null {
-  return localStorage.getItem("access_token"); // ajusta si usas otro nombre
+  return localStorage.getItem("access_token");
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+
+function joinUrl(base: string, path: string) {
+  const b = base.replace(/\/+$/, "");
+  const p = path.replace(/^\/+/, "");
+  return `${b}/${p}`;
+}
+
+export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getAccessToken();
 
-  const res = await fetch(`${API_URL}${path}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+  const headers = new Headers(options.headers);
+  headers.set("Content-Type", "application/json");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  return fetch(joinUrl(API_URL, path), {
+    ...options,
+    headers,
   });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
-  }
-
-  return res.json() as Promise<T>;
 }

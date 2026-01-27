@@ -18,6 +18,25 @@ class ReservationRepository:
         reservation._id = result.inserted_id
         return reservation
     
+    def count_by_user_id(self, user_id, state=None):
+        """Cuenta reservas por usuario (soporta user_id string u ObjectId en BD)"""
+
+        user_id_str = str(user_id)
+
+        query = {
+            "$or": [
+                {"user_id": user_id_str},
+            ]
+        }
+
+        if ObjectId.is_valid(user_id_str):
+            query["$or"].append({"user_id": ObjectId(user_id_str)})
+
+        if state:
+            query["state"] = state
+
+        return self.collection.count_documents(query)
+    
     def find_by_id(self, reservation_id):
         """Busca una reserva por ID"""
         data = self.collection.find_one({'_id': ObjectId(reservation_id)})

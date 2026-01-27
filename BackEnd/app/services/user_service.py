@@ -1,5 +1,6 @@
 from datetime import datetime
 from bson import ObjectId
+from app.repositories.reservation_repository import ReservationRepository
 from app.config.database import get_db
 import logging
 import re
@@ -197,15 +198,23 @@ class UserService:
         self._log_audit(admin_id, 'delete_user', user_id)
         
         return True
-    
+
     def get_all_users(self, skip=0, limit=20):
-        """Obtiene todos los usuarios (ADMIN)"""
-        cursor = self.users_collection.find({}).skip(skip).limit(limit)
-        users = []
-        for user in cursor:
-            user['_id'] = str(user['_id'])
+        """Obtiene todos los usuarios (ADMIN) + reservationsCount"""
+
+        cursor = self.users_collection.find({}).skip(skip).limit(limit) 
+        users = [] 
+        reservation_repo = ReservationRepository()
+
+        for user in cursor: 
+            user['_id'] = str(user['_id']) 
             user.pop('password', None)
-            users.append(user)
+
+            # Añadir reservationsCount
+            user['reservationsCount'] = reservation_repo.count_by_user_id(user['_id'])
+
+            users.append(user) 
+        
         return users
     
     def _validate_email(self, email):

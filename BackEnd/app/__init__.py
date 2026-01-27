@@ -96,7 +96,8 @@ def init_extensions(app):
     # CORS
     CORS(app, 
          origins=app.config['CORS_ORIGINS'],
-         supports_credentials=app.config['CORS_SUPPORTS_CREDENTIALS'])
+         supports_credentials=app.config['CORS_SUPPORTS_CREDENTIALS'],
+         resources={r"/api/*": {"origins": "http://localhost:8080"}})
     
     # JWT
     jwt.init_app(app)
