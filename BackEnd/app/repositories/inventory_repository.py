@@ -1,15 +1,43 @@
+"""
+Inventory Repository with proper lazy database loading
+This prevents creating new connections on every instantiation
+"""
 from bson import ObjectId
 from app.config.database import get_db
 from app.models.inventory import Inventory
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryRepository:
     def __init__(self):
-        self.db = get_db()
-        self.collection = self.db.inventory
-        self.movements_collection = self.db.inventory_movements
+        self._db = None
 
+    # ============================================================================
+    # LAZY LOADING PROPERTIES - Database is only accessed when needed
+    # ============================================================================
+    @property
+    def db(self):
+        """Lazy load database connection - reuses existing connection pool"""
+        if self._db is None:
+            self._db = get_db()  # This now returns the SHARED database instance
+        return self._db
+
+    @property
+    def collection(self):
+        """Get inventory collection (lazy loaded)"""
+        return self.db.inventory
+
+    @property
+    def movements_collection(self):
+        """Get inventory movements collection (lazy loaded)"""
+        return self.db.inventory_movements
+
+    # ============================================================================
+    # REPOSITORY METHODS - Now use properties instead of direct access
+    # ============================================================================
     def find_by_variant_id(self, variant_id):
         return self.collection.find_one({'variant_id': ObjectId(variant_id)})
 
