@@ -3,6 +3,8 @@ from app.repositories.product_repository import VariantRepository
 from app.repositories.inventory_repository import InventoryRepository
 from app.services.reservation_service import ReservationService
 import logging
+import time
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +80,49 @@ class WishlistService:
         self.wishlist_repo.clear(user_id)
         return {'message': 'Wishlist limpiada exitosamente'}
 
+    def _retry_operation(self, operation, max_retries=3, delay=1):
+        """
+        Retry a database operation with exponential backoff
+
+        Args:
+            operation: Callable to retry
+            max_retries: Maximum number of retry attempts
+            delay: Initial delay between retries (seconds)
+
+        Returns:
+            Result of the operation
+
+        Raises:
+            Exception from the last failed attempt
+        """
+        last_exception = None
+
+        for attempt in range(max_retries):
+            try:
+                return operation()
+            except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    wait_time = delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(
+                        f"Database operation failed (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {wait_time}s... Error: {str(e)}"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Database operation failed after {max_retries} attempts: {str(e)}")
+            except Exception as e:
+                # For non-connection errors, don't retry
+                logger.error(f"Non-retryable error in database operation: {str(e)}")
+                raise
+
+        # If we exhausted all retries, raise the last exception
+        raise last_exception
+
     def convert_to_reservation(self, user_id, items_to_reserve):
         """
         Convierte items de la wishlist a reserva (CU-007, RF-13)
+        WITH IMPROVED ERROR HANDLING AND RETRY LOGIC
 
         Args:
             user_id: ID del usuario
@@ -90,66 +132,129 @@ class WishlistService:
         Returns:
             Reserva creada
         """
-        # Obtener wishlist con detalles
-        wishlist = self.get_wishlist(user_id)
-        wishlist_items = wishlist['items']
+        try:
+            logger.info(f"Starting wishlist to reservation conversion for user {user_id}")
+            logger.debug(f"Items to reserve: {items_to_reserve}")
 
-        # Validar que los items existen en la wishlist
-        reservation_items = []
-        for item_to_reserve in items_to_reserve:
-            item_id = item_to_reserve['item_id']
-            quantity = item_to_reserve['quantity']
+            # Obtener wishlist con detalles (with retry)
+            def get_wishlist_operation():
+                return self.get_wishlist(user_id)
 
-            # Buscar item en wishlist
-            wishlist_item = next(
-                (item for item in wishlist_items if str(item['item_id']) == str(item_id)),
-                None
+            wishlist = self._retry_operation(get_wishlist_operation)
+            wishlist_items = wishlist['items']
+
+            logger.info(f"Retrieved wishlist with {len(wishlist_items)} items")
+
+            # Validar que los items existen en la wishlist
+            reservation_items = []
+            for item_to_reserve in items_to_reserve:
+                item_id = item_to_reserve['item_id']
+                quantity = item_to_reserve['quantity']
+
+                logger.debug(f"Processing item_id: {item_id}, quantity: {quantity}")
+
+                # Buscar item en wishlist
+                wishlist_item = next(
+                    (item for item in wishlist_items if str(item['item_id']) == str(item_id)),
+                    None
+                )
+
+                if not wishlist_item:
+                    logger.error(f"Item {item_id} not found in wishlist")
+                    raise ValueError(f"Item {item_id} no encontrado en wishlist")
+
+                logger.debug(f"Found wishlist item: {wishlist_item.get('product', {}).get('nombre', 'Unknown')}")
+
+                # Validar cantidad
+                if quantity <= 0:
+                    raise ValueError(f"Cantidad inválida para item {item_id}")
+
+                if quantity > wishlist_item['quantity']:
+                    raise ValueError(
+                        f"Cantidad solicitada ({quantity}) excede cantidad en wishlist ({wishlist_item['quantity']})"
+                    )
+
+                # Validar disponibilidad (RF-12)
+                # Check both 'disponibilidad' and 'stock_disponible' from inventory object
+                inventory = wishlist_item.get('inventory', {})
+                available = inventory.get('disponibilidad', inventory.get('stock_disponible', 0))
+
+                # Also check root-level 'stock' field as fallback
+                if available == 0:
+                    available = wishlist_item.get('stock', 0)
+
+                logger.debug(f"Available stock for item: {available}")
+
+                if quantity > available:
+                    # Extract product name from nested structure
+                    product_name = wishlist_item.get('product', {}).get('nombre') or wishlist_item.get('product', {}).get('name', 'Producto')
+                    variant_size = wishlist_item.get('variant', {}).get('tamano_pieza') or wishlist_item.get('variant', {}).get('size', '')
+
+                    error_msg = f"Stock insuficiente para {product_name} ({variant_size}). Disponible: {available}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+
+                # Agregar a items de reserva
+                # Extract data from nested structure (handles both Spanish and English field names)
+                product_name = wishlist_item.get('product', {}).get('nombre') or wishlist_item.get('product', {}).get('name', 'Producto')
+                variant_size = wishlist_item.get('variant', {}).get('tamano_pieza') or wishlist_item.get('variant', {}).get('size', '')
+                variant_price = wishlist_item.get('variant', {}).get('precio') or wishlist_item.get('variant', {}).get('price')
+
+                reservation_item = {
+                    'variant_id': wishlist_item['variant_id'],
+                    'product_name': product_name,
+                    'variant_size': variant_size,
+                    'quantity': quantity,
+                    'price': variant_price
+                }
+
+                reservation_items.append(reservation_item)
+                logger.debug(f"Added reservation item: {product_name} - {variant_size} x{quantity}")
+
+            logger.info(f"Validated {len(reservation_items)} items for reservation")
+
+            # Crear reserva usando ReservationService (with retry)
+            def create_reservation_operation():
+                reservation_service = ReservationService()
+                return reservation_service.create_reservation(
+                    user_id=user_id,
+                    items=reservation_items
+                )
+
+            reservation = self._retry_operation(create_reservation_operation)
+            logger.info(f"Reservation created successfully: {reservation._id}")
+
+            # Eliminar items de la wishlist después de crear la reserva
+            # (Best effort - don't fail the whole operation if this fails)
+            for item_to_reserve in items_to_reserve:
+                try:
+                    self.wishlist_repo.remove_item(user_id, item_to_reserve['item_id'])
+                    logger.debug(f"Removed item {item_to_reserve['item_id']} from wishlist")
+                except Exception as e:
+                    logger.warning(
+                        f"No se pudo eliminar item {item_to_reserve['item_id']} de wishlist: {str(e)}. "
+                        "This is non-critical - continuing."
+                    )
+
+            logger.info(f"Wishlist to reservation conversion completed successfully")
+            return reservation
+
+        except ValueError as e:
+            # Business logic errors - don't retry, just re-raise
+            logger.error(f"Validation error in convert_to_reservation: {str(e)}")
+            raise
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            # Database connection errors - already retried in _retry_operation
+            error_msg = (
+                "No se pudo conectar a la base de datos. "
+                "Por favor, verifica tu conexión a internet e intenta nuevamente."
             )
-
-            if not wishlist_item:
-                raise ValueError(f"Item {item_id} no encontrado en wishlist")
-
-            # Validar cantidad
-            if quantity <= 0:
-                raise ValueError(f"Cantidad inválida para item {item_id}")
-
-            if quantity > wishlist_item['quantity']:
-                raise ValueError(
-                    f"Cantidad solicitada ({quantity}) excede cantidad en wishlist ({wishlist_item['quantity']})"
-                )
-
-            # Validar disponibilidad (RF-12)
-            available = wishlist_item.get('disponibilidad', 0)
-            if quantity > available:
-                raise ValueError(
-                    f"Stock insuficiente para {wishlist_item['product_name']} "
-                    f"({wishlist_item['variant_size']}). Disponible: {available}"
-                )
-
-            # Agregar a items de reserva
-            reservation_items.append({
-                'variant_id': wishlist_item['variant_id'],
-                'product_name': wishlist_item['product_name'],
-                'variant_size': wishlist_item['variant_size'],
-                'quantity': quantity,
-                'price': wishlist_item.get('variant_price')
-            })
-
-        # Crear reserva usando ReservationService
-        reservation_service = ReservationService()
-        reservation = reservation_service.create_reservation(
-            user_id=user_id,
-            items=reservation_items
-        )
-
-        # Opcional: Eliminar items de la wishlist después de crear la reserva
-        for item_to_reserve in items_to_reserve:
-            try:
-                self.wishlist_repo.remove_item(user_id, item_to_reserve['item_id'])
-            except Exception as e:
-                logger.warning(f"No se pudo eliminar item {item_to_reserve['item_id']} de wishlist: {str(e)}")
-
-        return reservation
+            logger.error(f"Database connection error after retries: {str(e)}")
+            raise ValueError(error_msg)
+        except Exception as e:
+            # Unexpected errors
+            logger.error(f"Unexpected error in convert_to_reservation: {str(e)}", exc_info=True)
+            raise ValueError(f"Error inesperado al crear la reserva: {str(e)}")
 
     def get_wishlist_summary(self, user_id):
         """
@@ -159,12 +264,23 @@ class WishlistService:
         items = wishlist['items']
 
         total_quantity = sum(item['quantity'] for item in items)
-        total_value = sum(
-            item['quantity'] * (item.get('variant_price') or 0)
-            for item in items
-        )
 
-        items_with_stock = sum(1 for item in items if item.get('disponibilidad', 0) > 0)
+        # Calculate total value - handle nested variant structure
+        total_value = 0
+        for item in items:
+            variant_price = item.get('variant', {}).get('precio') or item.get('variant', {}).get('price', 0)
+            total_value += item['quantity'] * variant_price
+
+        # Check availability from inventory or root-level fields
+        items_with_stock = 0
+        for item in items:
+            inventory = item.get('inventory', {})
+            available = inventory.get('disponibilidad', inventory.get('stock_disponible', 0))
+            if available == 0:
+                available = item.get('stock', 0)
+            if available > 0:
+                items_with_stock += 1
+
         items_out_of_stock = len(items) - items_with_stock
 
         return {

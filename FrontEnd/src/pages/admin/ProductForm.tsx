@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -23,40 +22,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Plus, Trash2, Upload, X, Minus } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-
-// Mock data
-const categories = [
-  { id: "porcelanato", name: "Porcelanato" },
-  { id: "ceramica", name: "Cerámica" },
-  { id: "marmol", name: "Mármol" },
-  { id: "granito", name: "Granito" },
-  { id: "madera", name: "Madera" },
-];
-
-const availableTags = [
-  { id: "interior", name: "Interior" },
-  { id: "exterior", name: "Exterior" },
-  { id: "antideslizante", name: "Antideslizante" },
-  { id: "premium", name: "Premium" },
-  { id: "rustico", name: "Rústico" },
-  { id: "moderno", name: "Moderno" },
-];
+  createProduct,
+  updateProduct,
+  getProductDetail,
+  getCategories,
+  getTags,
+  type CreateProductRequest,
+  type UpdateProductRequest,
+} from "@/api/products";
 
 interface Variant {
-  id: string;
-  size: string;
-  stock: number;
-  reserved: number;
+  _id?: string;
+  tamano_pieza: string;
+  unidad: string;
+  precio?: number;
+  stock_inicial?: number;
 }
 
 const ProductForm = () => {
@@ -64,31 +47,76 @@ const ProductForm = () => {
   const navigate = useNavigate();
   const isEditing = Boolean(id);
 
+  const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(isEditing);
+
+  // Opciones
+  const [categories, setCategories] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+
   // Form state
-  const [name, setName] = useState(isEditing ? "Porcelanato Terrazo Blanco" : "");
-  const [description, setDescription] = useState(
-    isEditing ? "Elegante porcelanato con efecto terrazo, ideal para espacios modernos." : ""
-  );
-  const [category, setCategory] = useState(isEditing ? "porcelanato" : "");
-  const [selectedTags, setSelectedTags] = useState<string[]>(isEditing ? ["interior", "moderno"] : []);
-  const [status, setStatus] = useState<"active" | "inactive">(isEditing ? "active" : "active");
-  const [isVisible, setIsVisible] = useState(true);
-  const [variants, setVariants] = useState<Variant[]>(
-    isEditing
-      ? [
-          { id: "1", size: "60x60", stock: 120, reserved: 15 },
-          { id: "2", size: "80x80", stock: 85, reserved: 8 },
-          { id: "3", size: "120x60", stock: 40, reserved: 5 },
-        ]
-      : []
-  );
+  const [nombre, setNombre] = useState("");
+  const [descripcionEmbalaje, setDescripcionEmbalaje] = useState("");
+  const [imagenUrl, setImagenUrl] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [estado, setEstado] = useState<"activo" | "inactivo" | "agotado">("activo");
+  const [variantes, setVariantes] = useState<Variant[]>([]);
+
+  // Variante nueva
   const [newVariantSize, setNewVariantSize] = useState("");
-  
-  // Stock adjustment state
-  const [adjustDialogOpen, setAdjustDialogOpen] = useState(false);
-  const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
-  const [adjustmentDelta, setAdjustmentDelta] = useState(0);
-  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [newVariantUnit, setNewVariantUnit] = useState("m²");
+  const [newVariantPrice, setNewVariantPrice] = useState("");
+  const [newVariantStock, setNewVariantStock] = useState("");
+
+  useEffect(() => {
+    loadOptions();
+    if (isEditing && id) {
+      loadProduct(id);
+    }
+  }, [id, isEditing]);
+
+  const loadOptions = async () => {
+    try {
+      const [categoriesData, tagsData] = await Promise.all([
+        getCategories(),
+        getTags(),
+      ]);
+      setCategories(categoriesData.categories);
+      setAvailableTags(tagsData.tags);
+    } catch (error) {
+      console.error("Error cargando opciones:", error);
+    }
+  };
+
+  const loadProduct = async (productId: string) => {
+    try {
+      setLoadingData(true);
+      const product = await getProductDetail(productId);
+      
+      setNombre(product.nombre || product.name || "");
+      setDescripcionEmbalaje(product.descripcion_embalaje || "");
+      setImagenUrl(product.imagen_url || product.image_url || "");
+      setCategoria(product.categoria || product.category || "");
+      setSelectedTags(product.tags || []);
+      setEstado((product.estado as any) || "activo");
+
+      // Cargar variantes
+      const variants = (product.variantes || product.variants || []).map((v: any) => ({
+        _id: v._id,
+        tamano_pieza: v.tamano_pieza || v.size || "",
+        unidad: v.unidad || "m²",
+        precio: v.precio || 0,
+        stock_inicial: 0, // No mostramos stock en edición
+      }));
+      setVariantes(variants);
+    } catch (error) {
+      toast.error("Error al cargar el producto");
+      console.error(error);
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   const toggleTag = (tagId: string) => {
     setSelectedTags((prev) =>
@@ -97,48 +125,123 @@ const ProductForm = () => {
   };
 
   const addVariant = () => {
-    if (!newVariantSize.trim()) return;
-    setVariants((prev) => [
-      ...prev,
-      { id: Date.now().toString(), size: newVariantSize, stock: 0, reserved: 0 },
-    ]);
+    if (!newVariantSize.trim()) {
+      toast.error("Ingresa el tamaño de la variante");
+      return;
+    }
+
+    const newVariant: Variant = {
+      tamano_pieza: newVariantSize,
+      unidad: newVariantUnit,
+      precio: newVariantPrice ? parseFloat(newVariantPrice) : undefined,
+      stock_inicial: newVariantStock ? parseInt(newVariantStock) : 0,
+    };
+
+    setVariantes((prev) => [...prev, newVariant]);
+    
+    // Limpiar campos
     setNewVariantSize("");
-  };
-
-  const removeVariant = (variantId: string) => {
-    setVariants((prev) => prev.filter((v) => v.id !== variantId));
-  };
-
-  const openAdjustDialog = (variant: Variant) => {
-    setSelectedVariant(variant);
-    setAdjustmentDelta(0);
-    setAdjustmentReason("");
-    setAdjustDialogOpen(true);
-  };
-
-  const handleStockAdjustment = () => {
-    if (!selectedVariant || adjustmentDelta === 0) return;
+    setNewVariantUnit("m²");
+    setNewVariantPrice("");
+    setNewVariantStock("");
     
-    setVariants((prev) =>
-      prev.map((v) =>
-        v.id === selectedVariant.id
-          ? { ...v, stock: Math.max(0, v.stock + adjustmentDelta) }
-          : v
-      )
-    );
-    
-    toast.success(
-      `Stock ${adjustmentDelta > 0 ? "aumentado" : "reducido"} en ${Math.abs(adjustmentDelta)} unidades`
-    );
-    setAdjustDialogOpen(false);
+    toast.success("Variante agregada");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const removeVariant = (index: number) => {
+    setVariantes((prev) => prev.filter((_, i) => i !== index));
+    toast.success("Variante eliminada");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would save to the backend
-    toast.success(isEditing ? "Producto actualizado correctamente" : "Producto creado correctamente");
-    navigate("/admin/products");
+
+    // Validaciones
+    if (!nombre.trim()) {
+      toast.error("El nombre es requerido");
+      return;
+    }
+
+    if (!imagenUrl.trim()) {
+      toast.error("La imagen es requerida");
+      return;
+    }
+
+    if (!categoria) {
+      toast.error("La categoría es requerida");
+      return;
+    }
+
+    if (variantes.length === 0) {
+      toast.error("Debes agregar al menos una variante");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      if (isEditing && id) {
+        // Actualizar producto
+        const updateData: UpdateProductRequest = {
+          nombre,
+          imagen_url: imagenUrl,
+          categoria,
+          tags: selectedTags,
+          estado,
+          descripcion_embalaje: descripcionEmbalaje || undefined,
+          variantes: variantes.map(v => ({
+            _id: v._id,
+            tamano_pieza: v.tamano_pieza,
+            unidad: v.unidad,
+            precio: v.precio,
+          })),
+        };
+
+        console.log("Actualizando producto:", updateData);
+        const result = await updateProduct(id, updateData);
+        console.log("Resultado actualización:", result);
+        toast.success("Producto actualizado correctamente");
+      } else {
+        // Crear producto
+        const createData: CreateProductRequest = {
+          nombre,
+          imagen_url: imagenUrl,
+          categoria,
+          tags: selectedTags,
+          estado,
+          descripcion_embalaje: descripcionEmbalaje || undefined,
+          variantes: variantes.map(v => ({
+            tamano_pieza: v.tamano_pieza,
+            unidad: v.unidad,
+            precio: v.precio,
+            stock_inicial: v.stock_inicial || 0,
+          })),
+        };
+
+        console.log("Creando producto:", createData);
+        const result = await createProduct(createData);
+        console.log("Resultado creación:", result);
+        toast.success("Producto creado correctamente");
+      }
+
+      navigate("/admin/products");
+    } catch (error: any) {
+      console.error("Error en handleSubmit:", error);
+      toast.error(error.message || "Error al guardar el producto");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loadingData) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <p>Cargando producto...</p>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -162,8 +265,8 @@ const ProductForm = () => {
             <Button type="button" variant="outline" asChild>
               <Link to="/admin/products">Cancelar</Link>
             </Button>
-            <Button type="submit">
-              {isEditing ? "Guardar Cambios" : "Crear Producto"}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Guardando..." : isEditing ? "Guardar Cambios" : "Crear Producto"}
             </Button>
           </div>
         </div>
@@ -179,155 +282,127 @@ const ProductForm = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre del Producto *</Label>
+                  <Label htmlFor="nombre">Nombre del Producto *</Label>
                   <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    id="nombre"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
                     placeholder="Ej: Porcelanato Terrazo Blanco"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Descripción</Label>
+                  <Label htmlFor="descripcion">Descripción / Embalaje</Label>
                   <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe las características del producto..."
+                    id="descripcion"
+                    value={descripcionEmbalaje}
+                    onChange={(e) => setDescripcionEmbalaje(e.target.value)}
+                    placeholder="Describe las características del producto o información del embalaje..."
                     rows={4}
                   />
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Image Upload */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Imagen del Producto</CardTitle>
-                <CardDescription>Sube una imagen representativa</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer">
-                  <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Arrastra una imagen o haz clic para seleccionar
-                  </p>
-                  <p className="text-xs text-muted-foreground">PNG, JPG hasta 5MB</p>
-                  <Input type="file" className="hidden" accept="image/*" />
-                </div>
-                {isEditing && (
-                  <div className="mt-4">
-                    <img
-                      src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop"
-                      alt="Current product"
-                      className="w-full h-48 object-cover rounded-lg"
+                <div className="space-y-2">
+                  <Label htmlFor="imagen">URL de Imagen *</Label>
+                  <Input
+                    id="imagen"
+                    value={imagenUrl}
+                    onChange={(e) => setImagenUrl(e.target.value)}
+                    placeholder="https://ejemplo.com/imagen.jpg"
+                    required
+                  />
+                  {imagenUrl && (
+                    <img 
+                      src={imagenUrl} 
+                      alt="Preview" 
+                      className="w-32 h-32 object-cover rounded mt-2"
+                      onError={(e) => {
+                        e.currentTarget.src = "https://placehold.co/150x150/e2e8f0/64748b?text=Sin+Imagen";
+                      }}
                     />
-                  </div>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
 
             {/* Variants */}
             <Card>
               <CardHeader>
-                <CardTitle>Variantes de Tamaño</CardTitle>
-                <CardDescription>Define las medidas disponibles para este producto</CardDescription>
+                <CardTitle>Variantes</CardTitle>
+                <CardDescription>Define los tamaños y precios disponibles</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Add variant */}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ej: 60x60, 80x80"
-                    value={newVariantSize}
-                    onChange={(e) => setNewVariantSize(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addVariant())}
-                  />
-                  <Button type="button" onClick={addVariant}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Agregar
-                  </Button>
+                {/* Add variant form */}
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-4">
+                    <Input
+                      placeholder="Tamaño (ej: 60x60)"
+                      value={newVariantSize}
+                      onChange={(e) => setNewVariantSize(e.target.value)}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Select value={newVariantUnit} onValueChange={setNewVariantUnit}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="m²">m²</SelectItem>
+                        <SelectItem value="cm">cm</SelectItem>
+                        <SelectItem value="pz">pz</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Input
+                      type="number"
+                      placeholder="Precio"
+                      value={newVariantPrice}
+                      onChange={(e) => setNewVariantPrice(e.target.value)}
+                    />
+                  </div>
+                  {!isEditing && (
+                    <div className="col-span-2">
+                      <Input
+                        type="number"
+                        placeholder="Stock"
+                        value={newVariantStock}
+                        onChange={(e) => setNewVariantStock(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <div className={isEditing ? "col-span-4" : "col-span-2"}>
+                    <Button type="button" onClick={addVariant} className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Agregar
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Variants table */}
-                {variants.length > 0 && (
+                {variantes.length > 0 && (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Tamaño (cm)</TableHead>
-                        <TableHead className="text-center">Stock Total</TableHead>
-                        <TableHead className="text-center">Reservado</TableHead>
-                        <TableHead className="text-center">Disponible</TableHead>
-                        <TableHead className="text-center">Ajustar</TableHead>
+                        <TableHead>Tamaño</TableHead>
+                        <TableHead>Unidad</TableHead>
+                        <TableHead>Precio</TableHead>
+                        {!isEditing && <TableHead>Stock Inicial</TableHead>}
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {variants.map((variant) => (
-                        <TableRow key={variant.id}>
-                          <TableCell className="font-medium">{variant.size}</TableCell>
-                          <TableCell className="text-center">{variant.stock}</TableCell>
-                          <TableCell className="text-center">{variant.reserved}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge
-                              variant={
-                                variant.stock - variant.reserved === 0
-                                  ? "destructive"
-                                  : variant.stock - variant.reserved < 20
-                                  ? "warning"
-                                  : "success"
-                              }
-                            >
-                              {variant.stock - variant.reserved}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => {
-                                  setSelectedVariant(variant);
-                                  setAdjustmentDelta(-1);
-                                  setAdjustmentReason("");
-                                  setAdjustDialogOpen(true);
-                                }}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => openAdjustDialog(variant)}
-                              >
-                                Ajustar
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => {
-                                  setSelectedVariant(variant);
-                                  setAdjustmentDelta(1);
-                                  setAdjustmentReason("");
-                                  setAdjustDialogOpen(true);
-                                }}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                      {variantes.map((variant, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{variant.tamano_pieza}</TableCell>
+                          <TableCell>{variant.unidad}</TableCell>
+                          <TableCell>${variant.precio?.toFixed(2) || "0.00"}</TableCell>
+                          {!isEditing && <TableCell>{variant.stock_inicial || 0}</TableCell>}
                           <TableCell>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
-                              onClick={() => removeVariant(variant.id)}
+                              onClick={() => removeVariant(index)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -338,7 +413,7 @@ const ProductForm = () => {
                   </Table>
                 )}
 
-                {variants.length === 0 && (
+                {variantes.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     No hay variantes definidas. Agrega al menos una variante.
                   </p>
@@ -352,29 +427,24 @@ const ProductForm = () => {
             {/* Status */}
             <Card>
               <CardHeader>
-                <CardTitle>Estado y Visibilidad</CardTitle>
+                <CardTitle>Estado</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Estado del Producto</Label>
-                  <Select value={status} onValueChange={(v) => setStatus(v as "active" | "inactive")}>
+                  <Select 
+                    value={estado} 
+                    onValueChange={(v) => setEstado(v as "activo" | "inactivo" | "agotado")}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Activo</SelectItem>
-                      <SelectItem value="inactive">Inactivo</SelectItem>
+                      <SelectItem value="activo">Activo</SelectItem>
+                      <SelectItem value="inactivo">Inactivo</SelectItem>
+                      <SelectItem value="agotado">Agotado</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Visible en Catálogo</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Mostrar este producto a los clientes
-                    </p>
-                  </div>
-                  <Switch checked={isVisible} onCheckedChange={setIsVisible} />
                 </div>
               </CardContent>
             </Card>
@@ -382,17 +452,17 @@ const ProductForm = () => {
             {/* Category */}
             <Card>
               <CardHeader>
-                <CardTitle>Categoría</CardTitle>
+                <CardTitle>Categoría *</CardTitle>
               </CardHeader>
               <CardContent>
-                <Select value={category} onValueChange={setCategory}>
+                <Select value={categoria} onValueChange={setCategoria} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona una categoría" />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -410,13 +480,13 @@ const ProductForm = () => {
                 <div className="flex flex-wrap gap-2">
                   {availableTags.map((tag) => (
                     <Badge
-                      key={tag.id}
-                      variant={selectedTags.includes(tag.id) ? "default" : "outline"}
+                      key={tag}
+                      variant={selectedTags.includes(tag) ? "default" : "outline"}
                       className="cursor-pointer"
-                      onClick={() => toggleTag(tag.id)}
+                      onClick={() => toggleTag(tag)}
                     >
-                      {tag.name}
-                      {selectedTags.includes(tag.id) && <X className="h-3 w-3 ml-1" />}
+                      {tag}
+                      {selectedTags.includes(tag) && <X className="h-3 w-3 ml-1" />}
                     </Badge>
                   ))}
                 </div>
@@ -425,82 +495,6 @@ const ProductForm = () => {
           </div>
         </div>
       </form>
-
-      {/* Stock Adjustment Dialog */}
-      <Dialog open={adjustDialogOpen} onOpenChange={setAdjustDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Ajustar Stock</DialogTitle>
-            <DialogDescription>
-              {selectedVariant && (
-                <>Variante: <strong>{selectedVariant.size}</strong> - Stock actual: <strong>{selectedVariant.stock}</strong></>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Cantidad a ajustar</Label>
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setAdjustmentDelta((prev) => prev - 1)}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Input
-                  type="number"
-                  value={adjustmentDelta}
-                  onChange={(e) => setAdjustmentDelta(parseInt(e.target.value) || 0)}
-                  className="text-center w-24"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setAdjustmentDelta((prev) => prev + 1)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {selectedVariant && (
-                <p className="text-sm text-muted-foreground">
-                  Nuevo stock: <strong>{Math.max(0, selectedVariant.stock + adjustmentDelta)}</strong>
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reason">Razón del ajuste</Label>
-              <Select value={adjustmentReason} onValueChange={setAdjustmentReason}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una razón" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="purchase">Compra / Entrada de mercancía</SelectItem>
-                  <SelectItem value="sale">Venta directa</SelectItem>
-                  <SelectItem value="return">Devolución</SelectItem>
-                  <SelectItem value="damage">Daño / Pérdida</SelectItem>
-                  <SelectItem value="correction">Corrección de inventario</SelectItem>
-                  <SelectItem value="other">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAdjustDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleStockAdjustment}
-              disabled={adjustmentDelta === 0}
-            >
-              Confirmar Ajuste
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AdminLayout>
   );
 };

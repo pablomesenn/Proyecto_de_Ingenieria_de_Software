@@ -27,7 +27,7 @@ const Profile = () => {
     try {
       setIsLoading(true);
       const updatedUser = await updateProfileService({ name, phone });
-      updateAuthProfile(updatedUser);
+      updateAuthProfile(updatedUser as unknown as Partial<typeof user>);
       toast.success("Perfil actualizado correctamente");
     } catch (error) {
       toast.error("Error al actualizar el perfil");
@@ -39,10 +39,10 @@ const Profile = () => {
 
   const handleChangePassword = () => {
     if (newPassword !== confirmPassword) {
-      toast.error("Las contraseÃ±as no coinciden");
+      toast.error("Las contraseñas no coinciden");
       return;
     }
-    toast.success("ContraseÃ±a actualizada correctamente");
+    toast.success("Contraseña actualizada correctamente");
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -53,12 +53,12 @@ const Profile = () => {
       <div className="space-y-6 max-w-2xl">
         <div>
           <h1 className="text-2xl font-display font-bold">Mi Perfil</h1>
-          <p className="text-muted-foreground">Gestiona tu informaciÃ³n personal</p>
+          <p className="text-muted-foreground">Gestiona tu información personal</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>InformaciÃ³n Personal</CardTitle>
+            <CardTitle>Información Personal</CardTitle>
             <CardDescription>Actualiza tus datos de contacto</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -84,7 +84,7 @@ const Profile = () => {
                 <Input id="email" value={email} disabled className="bg-muted" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone"><Phone className="h-4 w-4 inline mr-2" />TelÃ©fono</Label>
+                <Label htmlFor="phone"><Phone className="h-4 w-4 inline mr-2" />Teléfono</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+506 0000-0000" />
               </div>
             </div>
@@ -114,22 +114,22 @@ const Profile = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle><Lock className="h-5 w-5 inline mr-2" />Cambiar ContraseÃ±a</CardTitle>
+            <CardTitle><Lock className="h-5 w-5 inline mr-2" />Cambiar Contraseña</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="current">ContraseÃ±a Actual</Label>
+              <Label htmlFor="current">Contraseña Actual</Label>
               <Input id="current" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new">Nueva ContraseÃ±a</Label>
+              <Label htmlFor="new">Nueva Contraseña</Label>
               <Input id="new" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm">Confirmar Nueva ContraseÃ±a</Label>
+              <Label htmlFor="confirm">Confirmar Nueva Contraseña</Label>
               <Input id="confirm" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
             </div>
-            <Button onClick={handleChangePassword} disabled={!currentPassword || !newPassword}>Actualizar ContraseÃ±a</Button>
+            <Button onClick={handleChangePassword} disabled={!currentPassword || !newPassword}>Actualizar Contraseña</Button>
           </CardContent>
         </Card>
       </div>

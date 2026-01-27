@@ -1,16 +1,44 @@
 from unittest import result
+"""
+Inventory Repository with proper lazy database loading
+This prevents creating new connections on every instantiation
+"""
 from bson import ObjectId
 from app.config.database import get_db
 from app.models.inventory import Inventory
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryRepository:
     def __init__(self):
-        self.db = get_db()
-        self.collection = self.db.inventory
-        self.movements_collection = self.db.inventory_movements
+        self._db = None
 
+    # ============================================================================
+    # LAZY LOADING PROPERTIES - Database is only accessed when needed
+    # ============================================================================
+    @property
+    def db(self):
+        """Lazy load database connection - reuses existing connection pool"""
+        if self._db is None:
+            self._db = get_db()  # This now returns the SHARED database instance
+        return self._db
+
+    @property
+    def collection(self):
+        """Get inventory collection (lazy loaded)"""
+        return self.db.inventory
+
+    @property
+    def movements_collection(self):
+        """Get inventory movements collection (lazy loaded)"""
+        return self.db.inventory_movements
+
+    # ============================================================================
+    # REPOSITORY METHODS - Now use properties instead of direct access
+    # ============================================================================
     def find_by_variant_id(self, variant_id):
         return self.collection.find_one({'variant_id': ObjectId(variant_id)})
 
@@ -133,6 +161,37 @@ class InventoryRepository:
 
         return list(self.collection.aggregate(pipeline))
 
+    def create_initial_stock(self, variant_id, initial_stock, actor_id, reason='Inventario inicial'):
+        """Crea un registro de inventario inicial para una variante nueva"""
+        from app.models.inventory import Inventory
+        
+        # Verificar si ya existe un registro de inventario para esta variante
+        existing = self.find_by_variant_id(variant_id)
+        if existing:
+            # Si ya existe, ajustar el stock
+            return self.adjust_stock(variant_id, initial_stock, reason, actor_id)
+        
+        # Crear nuevo registro de inventario
+        inventory = Inventory(
+            variant_id=ObjectId(variant_id),
+            stock_total=initial_stock,
+            stock_retenido=0
+        )
+        
+        result = self.collection.insert_one(inventory.to_dict())
+        
+        # Registrar movimiento
+        if initial_stock > 0:
+            self._log_movement(
+                variant_id=variant_id,
+                quantity=initial_stock,
+                movement_type='initial',
+                reason=reason,
+                actor_id=actor_id
+            )
+        
+        return self.collection.find_one({'_id': result.inserted_id})
+
     def create(self, inventory):
         before = {"total": 0, "retained": 0, "available": 0}
         result = self.collection.insert_one(inventory.to_dict())
@@ -238,16 +297,23 @@ class InventoryRepository:
 
         inventory = self.find_by_variant_id(variant_id)
         if not inventory:
+            logger.error(f"Inventario no encontrado para variante: {variant_id}")
             return False
 
         current_stock = inventory.get('stock_total', 0)
         new_stock = current_stock + delta
         if new_stock < 0:
+            logger.warning(f"Stock resultante sería negativo: {new_stock}")
             return False
 
         result = self.collection.update_one(
             {'variant_id': ObjectId(variant_id)},
-            {'$set': {'stock_total': new_stock, 'actualizado_en': datetime.utcnow()}}
+            {
+                '$set': {
+                    'stock_total': new_stock,
+                    'actualizado_en': datetime.utcnow()
+                }
+            }
         )
 
         if result.modified_count > 0:
@@ -264,47 +330,16 @@ class InventoryRepository:
 
         return result.modified_count > 0
 
-
-    def _snapshot(self, variant_id):
-        inv = self.collection.find_one({'variant_id': ObjectId(variant_id)})
-        if not inv:
-            return {
-                "total": 0,
-                "retained": 0,
-                "available": 0,
-            }
-        total = inv.get("stock_total", 0)
-        retained = inv.get("stock_retenido", 0)
-        return {
-            "total": total,
-            "retained": retained,
-            "available": max(0, total - retained),
-        }
-
-    def _log_movement(self, variant_id, quantity, movement_type, reason, actor_id=None,
-                      before=None, after=None):
-        before = before or {"total": None, "retained": None, "available": None}
-        after = after or {"total": None, "retained": None, "available": None}
-
+    def _log_movement(self, variant_id, quantity, movement_type, reason, actor_id=None):
+        """Registra un movimiento de inventario en la bitácora"""
         movement = {
             'variant_id': ObjectId(variant_id),
             'quantity': quantity,
             'movement_type': movement_type,
             'reason': reason,
             'actor_id': ObjectId(actor_id) if actor_id else None,
-            'creado_en': datetime.utcnow(),
-
-            # Para tu tabla:
-            'stock_before': before.get("available"),
-            'stock_after': after.get("available"),
-
-            # (extra útil por si luego lo ocupas)
-            'total_before': before.get("total"),
-            'total_after': after.get("total"),
-            'retained_before': before.get("retained"),
-            'retained_after': after.get("retained"),
+            'creado_en': datetime.utcnow()
         }
-
         self.movements_collection.insert_one(movement)
 
     def get_movements(self, variant_id=None, movement_type=None, skip=0, limit=50):

@@ -1,19 +1,53 @@
+"""
+Catalog Repository with proper lazy database loading
+This prevents creating new connections on every instantiation
+"""
 from bson import ObjectId
 from datetime import datetime
 from app.config.database import get_db
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class CatalogRepository:
     def __init__(self):
-        db = get_db()
-        self.categories = db.categories
-        self.tags = db.tags
-        self.products = db.products
+        self._db = None
 
-    # ---------- Helpers ----------
+    # ============================================================================
+    # LAZY LOADING PROPERTIES - Database is only accessed when needed
+    # ============================================================================
+    @property
+    def db(self):
+        """Lazy load database connection - reuses existing connection pool"""
+        if self._db is None:
+            self._db = get_db()  # This now returns the SHARED database instance
+        return self._db
+
+    @property
+    def categories(self):
+        """Get categories collection (lazy loaded)"""
+        return self.db.categories
+
+    @property
+    def tags(self):
+        """Get tags collection (lazy loaded)"""
+        return self.db.tags
+
+    @property
+    def products(self):
+        """Get products collection (lazy loaded)"""
+        return self.db.products
+
+    # ============================================================================
+    # HELPER METHODS
+    # ============================================================================
     def _slugify(self, name: str) -> str:
         return name.strip().lower().replace(" ", "-")
 
-    # ---------- Categories ----------
+    # ============================================================================
+    # CATEGORY OPERATIONS - Now use properties instead of direct access
+    # ============================================================================
     def list_categories(self):
         pipeline = [
             {
@@ -103,7 +137,12 @@ class CatalogRepository:
         res = self.categories.delete_one({"_id": ObjectId(category_id)})
         return res.deleted_count > 0
 
-    # ---------- Tags ----------
+    def get_category_by_id(self, category_id: str):
+        return self.categories.find_one({"_id": ObjectId(category_id)})
+
+    # ============================================================================
+    # TAG OPERATIONS - Now use properties instead of direct access
+    # ============================================================================
     def list_tags(self):
         pipeline = [
             {
@@ -202,9 +241,6 @@ class CatalogRepository:
 
         res = self.tags.delete_one({"_id": ObjectId(tag_id)})
         return res.deleted_count > 0
-    
-    def get_category_by_id(self, category_id: str):
-        return self.categories.find_one({"_id": ObjectId(category_id)})
 
     def get_tag_by_id(self, tag_id: str):
         return self.tags.find_one({"_id": ObjectId(tag_id)})

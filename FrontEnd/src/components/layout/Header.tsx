@@ -43,11 +43,17 @@ const Header = () => {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
           <div className="h-10 w-10 rounded-lg gradient-hero flex items-center justify-center">
-            <span className="text-primary-foreground font-display font-bold text-lg">PK</span>
+            <span className="text-primary-foreground font-display font-bold text-lg">
+              PK
+            </span>
           </div>
           <div className="hidden sm:block">
-            <span className="font-display font-semibold text-lg text-foreground">Pisos Kermy</span>
-            <span className="text-xs text-muted-foreground block -mt-1">JacÃ³ S.A.</span>
+            <span className="font-display font-semibold text-lg text-foreground">
+              Pisos Kermy
+            </span>
+            <span className="text-xs text-muted-foreground block -mt-1">
+              Jacó S.A.
+            </span>
           </div>
         </Link>
 
@@ -59,7 +65,7 @@ const Header = () => {
               to={link.href}
               className={cn(
                 "text-sm font-medium transition-colors hover:text-primary",
-                isActive(link.href) ? "text-primary" : "text-muted-foreground"
+                isActive(link.href) ? "text-primary" : "text-muted-foreground",
               )}
             >
               {link.label}
@@ -84,12 +90,54 @@ const Header = () => {
               <ShoppingBag className="h-5 w-5" />
             </Link>
           </Button>
-          <Button variant="outline" asChild>
-            <Link to="/login">
-              <User className="h-4 w-4 mr-2" />
-              Iniciar SesiÃ³n
-            </Link>
-          </Button>
+
+          {isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <User className="h-4 w-4 mr-2" />
+                  {user?.name || user?.email}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {user?.name}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user?.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/profile">
+                    <User className="mr-2 h-4 w-4" />
+                    Mi Perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/reservations">
+                    <ShoppingBag className="mr-2 h-4 w-4" />
+                    Mis Reservas
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Cerrar Sesión
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="outline" asChild>
+              <Link to="/login">
+                <User className="h-4 w-4 mr-2" />
+                Iniciar Sesión
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -99,7 +147,11 @@ const Header = () => {
           className="md:hidden"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {mobileMenuOpen ? (
+            <X className="h-5 w-5" />
+          ) : (
+            <Menu className="h-5 w-5" />
+          )}
         </Button>
       </div>
 
@@ -113,28 +165,84 @@ const Header = () => {
                 to={link.href}
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive(link.href) 
-                    ? "bg-primary/10 text-primary" 
-                    : "text-muted-foreground hover:bg-muted"
+                  isActive(link.href)
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
                 )}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {link.label}
               </Link>
             ))}
-            <div className="border-t border-border mt-2 pt-2 flex gap-2">
-              <Button variant="ghost" size="sm" className="flex-1" asChild>
+            <div className="border-t border-border mt-2 pt-2 flex flex-col gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                asChild
+              >
                 <Link to="/wishlist" onClick={() => setMobileMenuOpen(false)}>
                   <Heart className="h-4 w-4 mr-2" />
-                  Mi Lista
+                  Mi Lista {wishlistCount > 0 && `(${wishlistCount})`}
                 </Link>
               </Button>
-              <Button variant="outline" size="sm" className="flex-1" asChild>
-                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <User className="h-4 w-4 mr-2" />
-                  Ingresar
-                </Link>
-              </Button>
+
+              {isAuthenticated ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link
+                      to="/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Mi Perfil
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link
+                      to="/reservations"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <ShoppingBag className="h-4 w-4 mr-2" />
+                      Mis Reservas
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      handleLogout();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Cerrar Sesión
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <User className="h-4 w-4 mr-2" />
+                    Iniciar Sesión
+                  </Link>
+                </Button>
+              )}
             </div>
           </nav>
         </div>

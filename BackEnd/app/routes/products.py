@@ -77,6 +77,7 @@ def get_products():
         limit = int(request.args.get('limit', 20))
 
         products = product_service.search_and_filter_catalog(
+            disponibilidad=None,
             skip=skip,
             limit=limit
         )

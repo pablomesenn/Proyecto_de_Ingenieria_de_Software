@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,17 +13,31 @@ import {
   Plus,
   Loader2,
   AlertCircle,
+  LogIn,
 } from "lucide-react";
 import MainLayout from "@/components/layout/MainLayout";
 import { cn } from "@/lib/utils";
 import * as productsApi from "@/api/products";
 import * as inventoryApi from "@/api/inventory";
 import { useWishlist } from "@/contexts/WishlistContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const ProductDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { addItem: addToWishlist } = useWishlist();
 
   const [product, setProduct] = useState<any | null>(null);
@@ -37,6 +51,7 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [addingToWishlist, setAddingToWishlist] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -120,6 +135,12 @@ const ProductDetail = () => {
   };
 
   const handleAddToWishlist = async () => {
+    // Check if user is logged in
+    if (!user) {
+      setShowLoginDialog(true);
+      return;
+    }
+
     if (!selectedVariant || !variantInventory?.disponible) return;
 
     setAddingToWishlist(true);
@@ -364,9 +385,7 @@ const ProductDetail = () => {
                     className="flex-1"
                     size="lg"
                     onClick={handleAddToWishlist}
-                    disabled={
-                      addingToWishlist || loadingInventory || !canAddToWishlist
-                    }
+                    disabled={addingToWishlist || loadingInventory}
                   >
                     {addingToWishlist ? (
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
@@ -379,9 +398,7 @@ const ProductDetail = () => {
                     variant="outline"
                     size="lg"
                     onClick={handleAddToWishlist}
-                    disabled={
-                      addingToWishlist || loadingInventory || !canAddToWishlist
-                    }
+                    disabled={addingToWishlist || loadingInventory}
                     className={cn(
                       isWishlisted && "text-primary border-primary",
                     )}
@@ -418,6 +435,28 @@ const ProductDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* Login Required Dialog */}
+        <AlertDialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Necesitas ingresar con una cuenta para acceder
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Para agregar productos a tu lista de interés, necesitas iniciar
+                sesión con tu cuenta.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => navigate("/login")}>
+                <LogIn className="h-4 w-4 mr-2" />
+                Iniciar Sesión
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );

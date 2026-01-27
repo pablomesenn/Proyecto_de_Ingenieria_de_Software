@@ -14,13 +14,13 @@ class InventoryService:
 
     def get_inventory_by_variant(self, variant_id):
         """
-        Obtiene el inventario de una variante específica
-        Incluye cálculo de disponibilidad
+        Obtiene el inventario de una variante especÃ­fica
+        Incluye cÃ¡lculo de disponibilidad
         """
         inventory = self.inventory_repo.find_by_variant_id(variant_id)
 
         if not inventory:
-            # Si no existe inventario, retornar estructura vacía
+            # Si no existe inventario, retornar estructura vacÃ­a
             return {
                 'variant_id': variant_id,
                 'stock_total': 0,
@@ -44,7 +44,7 @@ class InventoryService:
 
     def get_all_inventory(self, skip=0, limit=20):
         """
-        Obtiene todo el inventario con información de variantes
+        Obtiene todo el inventario con informaciÃ³n de variantes
         """
         inventories = self.inventory_repo.get_all_with_details(skip=skip, limit=limit)
 
@@ -94,7 +94,7 @@ class InventoryService:
 
         created = self.inventory_repo.create(inventory)
 
-        # Registrar auditoría
+        # Registrar auditorÃ­a
         self._log_audit(
             admin_id,
             'create_inventory',
@@ -129,7 +129,7 @@ class InventoryService:
         if not success:
             raise ValueError("No se pudo actualizar el inventario")
 
-        # Registrar auditoría
+        # Registrar auditorÃ­a
         self._log_audit(
             admin_id,
             'update_stock_total',
@@ -144,19 +144,24 @@ class InventoryService:
         Ajusta el inventario (incrementa o decrementa) (ADMIN)
         delta positivo = incremento, delta negativo = decremento
         """
+        logger.info(f"Service: Iniciando ajuste de inventario - Variante: {variant_id}, Delta: {delta}")
+        
         inventory = self.inventory_repo.find_by_variant_id(variant_id)
 
         if not inventory:
+            logger.error(f"Service: Inventario no encontrado para variante: {variant_id}")
             raise ValueError("Inventario no encontrado para esta variante")
 
         current_stock = inventory.get('stock_total', 0)
         stock_retenido = inventory.get('stock_retenido', 0)
         new_stock = current_stock + delta
 
+        logger.info(f"Service: Stock actual: {current_stock}, Stock retenido: {stock_retenido}, Nuevo stock: {new_stock}")
+
         # Validar que el nuevo stock no sea negativo
         if new_stock < 0:
             raise ValueError(
-                f"El ajuste resultaría en stock negativo "
+                f"El ajuste resultarÃ­a en stock negativo "
                 f"(actual: {current_stock}, delta: {delta})"
             )
 
@@ -168,6 +173,7 @@ class InventoryService:
             )
 
         # Realizar ajuste
+        logger.info(f"Service: Llamando a repository.adjust_stock()")
         success = self.inventory_repo.adjust_stock(
             variant_id=variant_id,
             delta=delta,
@@ -176,9 +182,12 @@ class InventoryService:
         )
 
         if not success:
+            logger.error(f"Service: Fallo al ajustar inventario en repository")
             raise ValueError("No se pudo ajustar el inventario")
 
-        # Registrar auditoría
+        logger.info(f"Service: Ajuste exitoso, registrando auditorÃ­a")
+
+        # Registrar auditorÃ­a
         self._log_audit(
             admin_id,
             'adjust_inventory',
@@ -271,7 +280,7 @@ class InventoryService:
     def get_low_stock_alerts(self, threshold=10):
         """
         Obtiene variantes con stock disponible bajo (menor al umbral)
-        Útil para alertas administrativas
+        Ãštil para alertas administrativas
         """
         all_inventory = self.get_all_inventory(skip=0, limit=1000)
 
@@ -283,7 +292,7 @@ class InventoryService:
         return sorted(low_stock, key=lambda x: x['disponibilidad'])
 
     def _log_audit(self, actor_id, action, entity_id, details=None):
-        """Registra una acción en auditoría"""
+        """Registra una acciÃ³n en auditorÃ­a"""
         from app.config.database import get_db
         from datetime import datetime
 

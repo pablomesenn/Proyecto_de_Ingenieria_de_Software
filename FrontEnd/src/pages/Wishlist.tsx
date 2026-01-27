@@ -4,8 +4,10 @@ import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useWishlist } from "@/contexts/WishlistContext";
+import { useAuth } from "@/contexts/AuthContext";
 import WishlistItem from "@/components/wishlist/WishlistItem";
 import CreateReservationDialog from "@/components/wishlist/CreateReservationDialog";
+import LoginRequired from "@/components/auth/AuthRequired";
 import {
   Heart,
   ShoppingBag,
@@ -29,6 +31,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Wishlist = () => {
+  const { user } = useAuth();
   const {
     items,
     isLoading,
@@ -50,6 +53,26 @@ const Wishlist = () => {
     const price = item.variant.price || 0;
     return sum + price * item.quantity;
   }, 0);
+
+  // Check if user is logged in
+  if (!user) {
+    return (
+      <MainLayout>
+        <div className="container py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl md:text-4xl font-display font-bold flex items-center gap-3">
+              <Heart className="h-8 w-8 text-primary fill-primary" />
+              Mi Lista de Interés
+            </h1>
+          </div>
+          <LoginRequired
+            message="Necesitas ingresar con una cuenta para acceder"
+            description="Inicia sesión para ver y gestionar tu lista de productos de interés"
+          />
+        </div>
+      </MainLayout>
+    );
+  }
 
   if (isLoading) {
     return (
