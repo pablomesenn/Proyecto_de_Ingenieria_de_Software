@@ -193,7 +193,6 @@ def adjust_inventory(variant_id):
         logger.error(f"Error ajustando inventario: {str(e)}")
         return jsonify({'error': 'Error interno del servidor'}), 500
 
-
 @inventory_bp.route('/variant/<variant_id>/retain', methods=['POST'])
 @jwt_required()
 @require_role(UserRole.ADMIN)

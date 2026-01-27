@@ -144,14 +144,19 @@ class InventoryService:
         Ajusta el inventario (incrementa o decrementa) (ADMIN)
         delta positivo = incremento, delta negativo = decremento
         """
+        logger.info(f"Service: Iniciando ajuste de inventario - Variante: {variant_id}, Delta: {delta}")
+        
         inventory = self.inventory_repo.find_by_variant_id(variant_id)
 
         if not inventory:
+            logger.error(f"Service: Inventario no encontrado para variante: {variant_id}")
             raise ValueError("Inventario no encontrado para esta variante")
 
         current_stock = inventory.get('stock_total', 0)
         stock_retenido = inventory.get('stock_retenido', 0)
         new_stock = current_stock + delta
+
+        logger.info(f"Service: Stock actual: {current_stock}, Stock retenido: {stock_retenido}, Nuevo stock: {new_stock}")
 
         # Validar que el nuevo stock no sea negativo
         if new_stock < 0:
@@ -168,6 +173,7 @@ class InventoryService:
             )
 
         # Realizar ajuste
+        logger.info(f"Service: Llamando a repository.adjust_stock()")
         success = self.inventory_repo.adjust_stock(
             variant_id=variant_id,
             delta=delta,
@@ -176,7 +182,10 @@ class InventoryService:
         )
 
         if not success:
+            logger.error(f"Service: Fallo al ajustar inventario en repository")
             raise ValueError("No se pudo ajustar el inventario")
+
+        logger.info(f"Service: Ajuste exitoso, registrando auditorÃ­a")
 
         # Registrar auditorÃ­a
         self._log_audit(

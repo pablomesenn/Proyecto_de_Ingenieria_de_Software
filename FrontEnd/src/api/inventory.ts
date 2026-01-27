@@ -1,4 +1,4 @@
-import { apiGet } from "./http";
+import { apiGet, apiPost } from "./http";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
 
@@ -75,4 +75,45 @@ export function getStockStatusColor(inventory: VariantInventory): string {
   }
 
   return "text-success";
+}
+
+// Get all inventory for admin
+export async function getAllInventory(skip: number = 0, limit: number = 20): Promise<any> {
+  return apiGet<any>(`/api/inventory/?skip=${skip}&limit=${limit}`);
+}
+
+// Adjust inventory (add or subtract)
+export async function adjustInventory(
+  variantId: string,
+  delta: number,
+  reason: string,
+): Promise<any> {
+  return apiPost<any>(`/api/inventory/variant/${variantId}/adjust`, {
+    delta,
+    reason,
+  });
+}
+
+// Retain stock
+export async function retainStock(
+  variantId: string,
+  quantity: number,
+  reason?: string,
+): Promise<any> {
+  return apiPost<any>(`/api/inventory/variant/${variantId}/retain`, {
+    quantity,
+    reason,
+  });
+}
+
+// Release stock
+export async function releaseStock(
+  variantId: string,
+  quantity: number,
+  reason?: string,
+): Promise<any> {
+  return apiPost<any>(`/api/inventory/variant/${variantId}/release`, {
+    quantity,
+    reason,
+  });
 }
