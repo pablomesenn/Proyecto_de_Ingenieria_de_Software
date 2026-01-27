@@ -292,11 +292,6 @@ const CreateReservationDialog = ({
                             Cantidad:{" "}
                             <span className="font-medium">{item.quantity}</span>
                           </div>
-                          {item.variant.price && (
-                            <div className="text-xs font-medium ml-auto">
-                              ${(item.variant.price * item.quantity).toFixed(2)}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>
