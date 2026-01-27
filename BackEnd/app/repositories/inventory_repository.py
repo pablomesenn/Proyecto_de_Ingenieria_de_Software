@@ -236,7 +236,7 @@ class InventoryRepository:
         return result.modified_count > 0
 
     def _log_movement(self, variant_id, quantity, movement_type, reason, actor_id=None):
-        """Registra un movimiento de inventario en la bitÃ¡cora"""
+        """Registra un movimiento de inventario en la bitácora"""
         movement = {
             'variant_id': ObjectId(variant_id),
             'quantity': quantity,
