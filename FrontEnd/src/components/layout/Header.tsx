@@ -29,7 +29,7 @@ const Header = () => {
   };
 
   const navLinks = [
-    { href: "/catalog", label: "CatÃ¡logo" },
+    { href: "/catalog", label: "Catálogo" },
     { href: "/about", label: "Nosotros" },
     { href: "/faq", label: "FAQ" },
     { href: "/contact", label: "Contacto" },
@@ -43,11 +43,17 @@ const Header = () => {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
           <div className="h-10 w-10 rounded-lg gradient-hero flex items-center justify-center">
-            <span className="text-primary-foreground font-display font-bold text-lg">PK</span>
+            <span className="text-primary-foreground font-display font-bold text-lg">
+              PK
+            </span>
           </div>
           <div className="hidden sm:block">
-            <span className="font-display font-semibold text-lg text-foreground">Pisos Kermy</span>
-            <span className="text-xs text-muted-foreground block -mt-1">JacÃ³ S.A.</span>
+            <span className="font-display font-semibold text-lg text-foreground">
+              Pisos Kermy
+            </span>
+            <span className="text-xs text-muted-foreground block -mt-1">
+              Jacó S.A.
+            </span>
           </div>
         </Link>
 
@@ -59,7 +65,7 @@ const Header = () => {
               to={link.href}
               className={cn(
                 "text-sm font-medium transition-colors hover:text-primary",
-                isActive(link.href) ? "text-primary" : "text-muted-foreground"
+                isActive(link.href) ? "text-primary" : "text-muted-foreground",
               )}
             >
               {link.label}
@@ -84,7 +90,7 @@ const Header = () => {
               <ShoppingBag className="h-5 w-5" />
             </Link>
           </Button>
-          
+
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -96,8 +102,12 @@ const Header = () => {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user?.name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                    <p className="text-sm font-medium leading-none">
+                      {user?.name}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user?.email}
+                    </p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -137,7 +147,11 @@ const Header = () => {
           className="md:hidden"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {mobileMenuOpen ? (
+            <X className="h-5 w-5" />
+          ) : (
+            <Menu className="h-5 w-5" />
+          )}
         </Button>
       </div>
 
@@ -151,9 +165,9 @@ const Header = () => {
                 to={link.href}
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive(link.href) 
-                    ? "bg-primary/10 text-primary" 
-                    : "text-muted-foreground hover:bg-muted"
+                  isActive(link.href)
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
                 )}
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -161,30 +175,51 @@ const Header = () => {
               </Link>
             ))}
             <div className="border-t border-border mt-2 pt-2 flex flex-col gap-2">
-              <Button variant="ghost" size="sm" className="w-full justify-start" asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                asChild
+              >
                 <Link to="/wishlist" onClick={() => setMobileMenuOpen(false)}>
                   <Heart className="h-4 w-4 mr-2" />
                   Mi Lista {wishlistCount > 0 && `(${wishlistCount})`}
                 </Link>
               </Button>
-              
+
               {isAuthenticated ? (
                 <>
-                  <Button variant="ghost" size="sm" className="w-full justify-start" asChild>
-                    <Link to="/profile" onClick={() => setMobileMenuOpen(false)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link
+                      to="/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
                       <User className="h-4 w-4 mr-2" />
                       Mi Perfil
                     </Link>
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full justify-start" asChild>
-                    <Link to="/reservations" onClick={() => setMobileMenuOpen(false)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link
+                      to="/reservations"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
                       <ShoppingBag className="h-4 w-4 mr-2" />
                       Mis Reservas
                     </Link>
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-full justify-start"
                     onClick={() => {
                       handleLogout();
@@ -196,7 +231,12 @@ const Header = () => {
                   </Button>
                 </>
               ) : (
-                <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  asChild
+                >
                   <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
                     <User className="h-4 w-4 mr-2" />
                     Iniciar Sesión

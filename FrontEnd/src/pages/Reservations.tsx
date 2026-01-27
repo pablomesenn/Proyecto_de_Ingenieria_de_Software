@@ -18,17 +18,32 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   getMyReservations,
+  cancelReservation,
   type Reservation,
   type ReservationState,
 } from "@/api/reservations";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useToast } from "@/hooks/use-toast";
 
 const Reservations = () => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadReservations();
@@ -46,6 +61,36 @@ const Reservations = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCancelReservation = async (reservationId: string) => {
+    try {
+      setCancellingId(reservationId);
+      await cancelReservation(reservationId);
+
+      toast({
+        title: "Reserva cancelada",
+        description: "Tu reserva ha sido cancelada exitosamente.",
+      });
+
+      // Reload reservations to get updated state
+      await loadReservations();
+    } catch (err: any) {
+      console.error("Error cancelling reservation:", err);
+      toast({
+        title: "Error",
+        description:
+          err.message || "No se pudo cancelar la reserva. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingId(null);
+      setConfirmCancelId(null);
+    }
+  };
+
+  const canCancelReservation = (state: ReservationState) => {
+    return state === "Pendiente" || state === "Aprobada";
   };
 
   const getStateConfig = (state: ReservationState) => {
@@ -194,6 +239,8 @@ const Reservations = () => {
                 (sum, item) => sum + item.quantity,
                 0,
               );
+              const isCancellable = canCancelReservation(reservation.state);
+              const isCancelling = cancellingId === reservation._id;
 
               return (
                 <Card key={reservation._id} className="overflow-hidden">
@@ -296,14 +343,28 @@ const Reservations = () => {
                       )}
 
                       {/* Actions */}
-                      <div className="flex justify-end pt-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link to={`/reservations/${reservation._id}`}>
-                            Ver detalles
-                            <ArrowRight className="h-4 w-4 ml-2" />
-                          </Link>
-                        </Button>
-                      </div>
+                      {isCancellable && (
+                        <div className="flex justify-end pt-2">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setConfirmCancelId(reservation._id)}
+                            disabled={isCancelling}
+                          >
+                            {isCancelling ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Cancelando...
+                              </>
+                            ) : (
+                              <>
+                                <Ban className="h-4 w-4 mr-2" />
+                                Cancelar reserva
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -311,6 +372,33 @@ const Reservations = () => {
             })}
           </div>
         )}
+
+        {/* Confirmation Dialog */}
+        <AlertDialog
+          open={confirmCancelId !== null}
+          onOpenChange={(open) => !open && setConfirmCancelId(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Cancelar reserva?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción liberará los productos reservados y no se puede
+                deshacer. ¿Estás seguro de que deseas cancelar esta reserva?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>No, mantener reserva</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() =>
+                  confirmCancelId && handleCancelReservation(confirmCancelId)
+                }
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sí, cancelar reserva
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );
