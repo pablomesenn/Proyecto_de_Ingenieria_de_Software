@@ -1,3 +1,6 @@
+# BackEnd/app/repositories/wishlist_repository.py
+# FIXED VERSION - Returns data structure that matches frontend expectations
+
 from bson import ObjectId
 from app.config.database import get_db
 from datetime import datetime
@@ -125,15 +128,21 @@ class WishlistRepository:
         return result.modified_count > 0
 
     def get_items_with_details(self, user_id):
+        """
+        FIXED: Returns data structure that matches frontend expectations
+        Returns items with nested product and variant objects
+        """
         wishlist = self.find_by_user_id(user_id)
 
         if not wishlist or not wishlist.get('items'):
             return []
 
-        # Pipeline de agregación para obtener detalles
+        # Pipeline de agregación mejorado
         pipeline = [
             {'$match': {'user_id': ObjectId(user_id)}},
             {'$unwind': '$items'},
+
+            # Lookup variant details
             {'$lookup': {
                 'from': 'variants',
                 'localField': 'items.variant_id',
@@ -141,6 +150,8 @@ class WishlistRepository:
                 'as': 'variant_details'
             }},
             {'$unwind': '$variant_details'},
+
+            # Lookup product details
             {'$lookup': {
                 'from': 'products',
                 'localField': 'variant_details.product_id',
@@ -148,6 +159,8 @@ class WishlistRepository:
                 'as': 'product_details'
             }},
             {'$unwind': '$product_details'},
+
+            # Lookup inventory details
             {'$lookup': {
                 'from': 'inventory',
                 'localField': 'items.variant_id',
@@ -158,34 +171,60 @@ class WishlistRepository:
                 'path': '$inventory_details',
                 'preserveNullAndEmptyArrays': True
             }},
+
+            # Project to frontend-expected structure
             {'$project': {
+                '_id': '$items.item_id',
                 'item_id': '$items.item_id',
-                'variant_id': '$items.variant_id',
                 'quantity': '$items.quantity',
                 'added_at': '$items.added_at',
-                'product_name': '$product_details.nombre',
-                'product_image': '$product_details.imagen_url',
-                'product_estado': '$product_details.estado',
-                'variant_size': '$variant_details.tamano_pieza',
-                'variant_unit': '$variant_details.unidad',
-                'variant_price': '$variant_details.precio',
-                'stock_total': {'$ifNull': ['$inventory_details.stock_total', 0]},
-                'stock_retenido': {'$ifNull': ['$inventory_details.stock_retenido', 0]},
-                'disponibilidad': {
-                    '$subtract': [
-                        {'$ifNull': ['$inventory_details.stock_total', 0]},
-                        {'$ifNull': ['$inventory_details.stock_retenido', 0]}
-                    ]
+                'updated_at': '$items.updated_at',
+
+                # Nested product object
+                'product': {
+                    '_id': '$product_details._id',
+                    'nombre': '$product_details.nombre',
+                    'imagen_url': '$product_details.imagen_url',
+                    'categoria': '$product_details.categoria',
+                    'estado': '$product_details.estado',
+                    'tags': '$product_details.tags'
+                },
+
+                # Nested variant object
+                'variant': {
+                    '_id': '$variant_details._id',
+                    'tamano_pieza': '$variant_details.tamano_pieza',
+                    'unidad': '$variant_details.unidad',
+                    'precio': '$variant_details.precio',
+                    'product_id': '$variant_details.product_id'
+                },
+
+                # Inventory info
+                'inventory': {
+                    'stock_total': {'$ifNull': ['$inventory_details.stock_total', 0]},
+                    'stock_retenido': {'$ifNull': ['$inventory_details.stock_retenido', 0]},
+                    'disponibilidad': {
+                        '$subtract': [
+                            {'$ifNull': ['$inventory_details.stock_total', 0]},
+                            {'$ifNull': ['$inventory_details.stock_retenido', 0]}
+                        ]
+                    }
                 }
             }}
         ]
 
         result = list(self.collection.aggregate(pipeline))
 
-        # Convertir ObjectIds a strings
+        # Convert ObjectIds to strings for JSON serialization
         for item in result:
             item['_id'] = str(item['_id'])
             item['item_id'] = str(item['item_id'])
-            item['variant_id'] = str(item['variant_id'])
+
+            if 'product' in item and item['product']:
+                item['product']['_id'] = str(item['product']['_id'])
+
+            if 'variant' in item and item['variant']:
+                item['variant']['_id'] = str(item['variant']['_id'])
+                item['variant']['product_id'] = str(item['variant']['product_id'])
 
         return result

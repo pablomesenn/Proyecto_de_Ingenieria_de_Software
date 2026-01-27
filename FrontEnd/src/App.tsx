@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WishlistProvider } from "./contexts/WishlistContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -13,7 +14,11 @@ import Catalog from "./pages/Catalog";
 import ProductDetail from "./pages/ProductDetail";
 import Wishlist from "./pages/Wishlist";
 import Reservations from "./pages/Reservations";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
+import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
+import Profile from "./pages/Profile";
 
 // Admin pages
 import Dashboard from "./pages/admin/Dashboard";
@@ -28,7 +33,7 @@ import ReservationDetail from "./pages/admin/ReservationDetail";
 import Users from "./pages/admin/Users";
 import UserForm from "./pages/admin/UserForm";
 import Export from "./pages/admin/Export";
-import Profile from "./pages/admin/Profile";
+import AdminProfile from "./pages/admin/Profile";
 
 const queryClient = new QueryClient();
 
@@ -50,23 +55,93 @@ const App = () => (
               <Route path="/catalog/:id" element={<ProductDetail />} />
               <Route path="/wishlist" element={<Wishlist />} />
               <Route path="/reservations" element={<Reservations />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/faq" element={<FAQ />} />
               
-              {/* Admin routes */}
-              <Route path="/admin" element={<Dashboard />} />
-              <Route path="/admin/products" element={<Products />} />
-              <Route path="/admin/products/new" element={<ProductForm />} />
-              <Route path="/admin/products/:id" element={<ProductForm />} />
-              <Route path="/admin/categories" element={<Categories />} />
-              <Route path="/admin/inventory" element={<Inventory />} />
-              <Route path="/admin/inventory/adjust" element={<InventoryAdjust />} />
-              <Route path="/admin/inventory/history" element={<InventoryHistory />} />
-              <Route path="/admin/reservations" element={<AdminReservations />} />
-              <Route path="/admin/reservations/:id" element={<ReservationDetail />} />
-              <Route path="/admin/users" element={<Users />} />
-              <Route path="/admin/users/new" element={<UserForm />} />
-              <Route path="/admin/users/:id" element={<UserForm />} />
-              <Route path="/admin/export" element={<Export />} />
-              <Route path="/admin/profile" element={<Profile />} />
+              {/* Protected route - Profile for all authenticated users */}
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              } />
+              
+              {/* Admin routes - Protected */}
+              <Route path="/admin" element={
+                <ProtectedRoute requireAdmin>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/products" element={
+                <ProtectedRoute requireAdmin>
+                  <Products />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/products/new" element={
+                <ProtectedRoute requireAdmin>
+                  <ProductForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/products/:id" element={
+                <ProtectedRoute requireAdmin>
+                  <ProductForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/categories" element={
+                <ProtectedRoute requireAdmin>
+                  <Categories />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/inventory" element={
+                <ProtectedRoute requireAdmin>
+                  <Inventory />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/inventory/adjust" element={
+                <ProtectedRoute requireAdmin>
+                  <InventoryAdjust />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/inventory/history" element={
+                <ProtectedRoute requireAdmin>
+                  <InventoryHistory />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/reservations" element={
+                <ProtectedRoute requireAdmin>
+                  <AdminReservations />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/reservations/:id" element={
+                <ProtectedRoute requireAdmin>
+                  <ReservationDetail />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/users" element={
+                <ProtectedRoute requireAdmin>
+                  <Users />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/users/new" element={
+                <ProtectedRoute requireAdmin>
+                  <UserForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/users/:id" element={
+                <ProtectedRoute requireAdmin>
+                  <UserForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/export" element={
+                <ProtectedRoute requireAdmin>
+                  <Export />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/profile" element={
+                <ProtectedRoute requireAdmin>
+                  <AdminProfile />
+                </ProtectedRoute>
+              } />
               
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />

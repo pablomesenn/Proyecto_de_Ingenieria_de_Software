@@ -10,6 +10,7 @@ from app.models.user import create_user, find_user_by_email
 from app.constants.roles import UserRole
 from app.routes.products import products_bp
 from app.routes.wishlist import wishlist_bp
+from app.routes.inventory import inventory_bp
 
 # Crear la aplicación
 app = create_app()
@@ -28,6 +29,7 @@ app.register_blueprint(users_bp, url_prefix='/api/users')
 app.register_blueprint(reservations_bp, url_prefix='/api/reservations')
 app.register_blueprint(products_bp, url_prefix='/api/products')
 app.register_blueprint(wishlist_bp, url_prefix='/api/wishlist')
+app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
 
 # Inicializar jobs programados
 scheduler = init_scheduler()
@@ -73,7 +75,7 @@ if __name__ == '__main__':
     🔧 Modo: {'Desarrollo' if debug else 'Producción'}
     📝 Documentación: http://{host}:{port}/
     💚 Health Check: http://{host}:{port}/health
-    
+
     ✓ JWT configurado
     ✓ Blueprints registrados: auth, users, reservations
     ✓ Jobs programados iniciados (expiración cada 5 min, notificaciones diarias)

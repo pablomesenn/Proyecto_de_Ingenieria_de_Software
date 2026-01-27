@@ -1,20 +1,37 @@
-import { Link, useLocation } from "react-router-dom";
-import { Menu, X, ShoppingBag, User, Heart } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Menu, X, ShoppingBag, User, Heart, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useWishlist } from "@/contexts/WishlistContext";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { items } = useWishlist();
+  const { user, isAuthenticated, logout } = useAuth();
   const wishlistCount = items.length;
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/");
+  };
 
   const navLinks = [
     { href: "/catalog", label: "Catálogo" },
     { href: "/about", label: "Nosotros" },
+    { href: "/faq", label: "FAQ" },
     { href: "/contact", label: "Contacto" },
   ];
 
@@ -30,7 +47,7 @@ const Header = () => {
           </div>
           <div className="hidden sm:block">
             <span className="font-display font-semibold text-lg text-foreground">Pisos Kermy</span>
-            <span className="text-xs text-muted-foreground block -mt-1">Jacó S.A.</span>
+            <span className="text-xs text-muted-foreground block -mt-1">JacÃ³ S.A.</span>
           </div>
         </Link>
 
@@ -70,7 +87,7 @@ const Header = () => {
           <Button variant="outline" asChild>
             <Link to="/login">
               <User className="h-4 w-4 mr-2" />
-              Iniciar Sesión
+              Iniciar SesiÃ³n
             </Link>
           </Button>
         </div>

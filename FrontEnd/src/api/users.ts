@@ -1,4 +1,5 @@
-import { apiFetch } from "./http";
+// src/api/users.ts
+import { apiGet, apiPost, apiPut, apiDelete } from "./http";
 
 type BackendUser = {
   _id: string;
@@ -8,6 +9,7 @@ type BackendUser = {
   role?: "ADMIN" | "CLIENT";
   state?: "activo" | "inactivo";
   created_at?: string;
+  reservationsCount?: number;
 };
 
 export type UiUser = {
@@ -21,31 +23,31 @@ export type UiUser = {
   createdAt: string;
 };
 
+function mapBackendToUiUser(u: BackendUser): UiUser {
+  const role: UiUser["role"] = u.role === "ADMIN" ? "admin" : "customer";
+  const isActive = (u.state ?? "activo") === "activo";
+  const createdAt = u.created_at ? u.created_at.slice(0, 10) : "—";
+
+  return {
+    id: u._id,
+    name: (u.name ?? "").trim() || u.email,
+    email: u.email,
+    phone: u.phone ?? null,
+    role,
+    isActive,
+    reservationsCount: u.reservationsCount ?? 0,
+    createdAt,
+  };
+}
+
+/** ======================
+ *  Admin: Users CRUD
+ *  ====================== */
+
 export async function fetchUsers(): Promise<UiUser[]> {
-   const res = await apiFetch("/users/", { method: "GET" });
-
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`GET /users/ -> ${res.status}: ${txt}`);
-  }
-
-  const data = await res.json();
-  return data.users.map((u) => {
-    const role = u.role === "ADMIN" ? "admin" : "customer";
-    const isActive = (u.state ?? "activo") === "activo";
-    const createdAt = u.created_at ? u.created_at.slice(0, 10) : "—";
-
-    return {
-      id: u._id,
-      name: (u.name ?? "").trim() || u.email,
-      email: u.email,
-      phone: u.phone ?? null,
-      role,
-      isActive,
-      reservationsCount: u.reservationsCount ?? 0, 
-      createdAt,
-    };
-  });
+  // apiGet ya retorna JSON parseado
+  const data = await apiGet<{ users: BackendUser[]; count: number }>("/api/users/");
+  return (data.users ?? []).map(mapBackendToUiUser);
 }
 
 export type CreateUserInput = {
@@ -65,53 +67,22 @@ export async function createUser(input: CreateUserInput): Promise<UiUser> {
     password: input.password,
   };
 
-  const res = await apiFetch("/users/", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`POST /users/ -> ${res.status}: ${txt}`);
-  }
-
-  const data = await res.json();
-  const u: BackendUser = data.user;
-
-  const role = u.role === "ADMIN" ? "admin" : "customer";
-  const isActive = (u.state ?? "activo") === "activo";
-  const createdAt = u.created_at ? u.created_at.slice(0, 10) : "—";
-
-  return {
-    id: u._id,
-    name: (u.name ?? "").trim() || u.email,
-    email: u.email,
-    phone: u.phone ?? null,
-    role,
-    isActive,
-    reservationsCount: 0,
-    createdAt,
-  };
+  const data = await apiPost<{ message: string; user: BackendUser }>("/api/users/", payload);
+  return mapBackendToUiUser(data.user);
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  const res = await apiFetch(`/users/${userId}`, { method: "DELETE" });
-
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`DELETE /users/${userId} -> ${res.status}: ${txt}`);
-  }
+  // tu backend responde { message: 'Usuario desactivado exitosamente' }
+  await apiDelete<{ message: string }>(`/api/users/${userId}`);
 }
-
-// Additional function updateUserStatus.
 
 export type UpdateUserInput = {
   name?: string;
   email?: string;
   phone?: string | null;
   role?: "admin" | "customer";
-  password?: string; // opcional, solo si quieres cambiarla
-  isActive?: boolean; // para state activo/inactivo
+  password?: string; // opcional
+  isActive?: boolean; // state activo/inactivo
 };
 
 export async function updateUser(userId: string, input: UpdateUserInput): Promise<UiUser> {
@@ -133,31 +104,58 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
     payload.state = input.isActive ? "activo" : "inactivo";
   }
 
-  const res = await apiFetch(`/users/${userId}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
+  const data = await apiPut<{ message: string; user: BackendUser }>(`/api/users/${userId}`, payload);
+  return mapBackendToUiUser(data.user);
+}
 
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`PUT /users/${userId} -> ${res.status}: ${txt}`);
-  }
+/** ======================
+ *  Authenticated user: profile
+ *  ====================== */
 
-  const data = await res.json();
-  const u: BackendUser = data.user;
+export type UiProfile = {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  role: "admin" | "customer";
+};
 
-  const role = u.role === "ADMIN" ? "admin" : "customer";
-  const isActive = (u.state ?? "activo") === "activo";
-  const createdAt = u.created_at ? u.created_at.slice(0, 10) : "—";
+export async function getProfile(): Promise<UiProfile> {
+  const data = await apiGet<BackendUser>("/api/users/profile");
 
   return {
-    id: u._id,
-    name: (u.name ?? "").trim() || u.email,
-    email: u.email,
-    phone: u.phone ?? null,
-    role,
-    isActive,
-    reservationsCount: 0,
-    createdAt,
+    id: data._id,
+    email: data.email,
+    name: data.name || "",
+    phone: data.phone || "",
+    role: data.role === "ADMIN" ? "admin" : "customer",
+  };
+}
+
+export async function updateProfile(profileData: { name?: string; phone?: string }) {
+  const data = await apiPut<{ message: string; user: BackendUser }>(
+    "/api/users/profile",
+    profileData
+  );
+
+  return {
+    id: data.user._id,
+    email: data.user.email,
+    name: data.user.name || "",
+    phone: data.user.phone || "",
+    role: data.user.role === "ADMIN" ? "admin" : "customer",
+  };
+}
+
+// Obtener usuario por ID (para admins)
+export async function getUserById(userId: string): Promise<UiProfile> {
+  const data = await apiGet<BackendUser>(`/api/users/${userId}`);
+
+  return {
+    id: data._id,
+    email: data.email,
+    name: data.name || "",
+    phone: data.phone || "",
+    role: data.role === "ADMIN" ? "admin" : "customer",
   };
 }

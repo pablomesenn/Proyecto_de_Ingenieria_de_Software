@@ -10,9 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { User, Mail, Phone, Lock, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { updateProfile as updateProfileService } from "@/api/users";
 
 const Profile = () => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile: updateAuthProfile } = useAuth();
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
@@ -20,18 +21,28 @@ const Profile = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSaveProfile = () => {
-    updateProfile({ name, phone });
-    toast.success("Perfil actualizado correctamente");
+  const handleSaveProfile = async () => {
+    try {
+      setIsLoading(true);
+      const updatedUser = await updateProfileService({ name, phone });
+      updateAuthProfile(updatedUser);
+      toast.success("Perfil actualizado correctamente");
+    } catch (error) {
+      toast.error("Error al actualizar el perfil");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChangePassword = () => {
     if (newPassword !== confirmPassword) {
-      toast.error("Las contraseñas no coinciden");
+      toast.error("Las contraseÃ±as no coinciden");
       return;
     }
-    toast.success("Contraseña actualizada correctamente");
+    toast.success("ContraseÃ±a actualizada correctamente");
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -42,12 +53,12 @@ const Profile = () => {
       <div className="space-y-6 max-w-2xl">
         <div>
           <h1 className="text-2xl font-display font-bold">Mi Perfil</h1>
-          <p className="text-muted-foreground">Gestiona tu información personal</p>
+          <p className="text-muted-foreground">Gestiona tu informaciÃ³n personal</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Información Personal</CardTitle>
+            <CardTitle>InformaciÃ³n Personal</CardTitle>
             <CardDescription>Actualiza tus datos de contacto</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -73,11 +84,13 @@ const Profile = () => {
                 <Input id="email" value={email} disabled className="bg-muted" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone"><Phone className="h-4 w-4 inline mr-2" />Teléfono</Label>
+                <Label htmlFor="phone"><Phone className="h-4 w-4 inline mr-2" />TelÃ©fono</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+506 0000-0000" />
               </div>
             </div>
-            <Button onClick={handleSaveProfile}>Guardar Cambios</Button>
+            <Button onClick={handleSaveProfile} disabled={isLoading}>
+              {isLoading ? "Guardando..." : "Guardar Cambios"}
+            </Button>
           </CardContent>
         </Card>
 
@@ -101,22 +114,22 @@ const Profile = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle><Lock className="h-5 w-5 inline mr-2" />Cambiar Contraseña</CardTitle>
+            <CardTitle><Lock className="h-5 w-5 inline mr-2" />Cambiar ContraseÃ±a</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="current">Contraseña Actual</Label>
+              <Label htmlFor="current">ContraseÃ±a Actual</Label>
               <Input id="current" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new">Nueva Contraseña</Label>
+              <Label htmlFor="new">Nueva ContraseÃ±a</Label>
               <Input id="new" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm">Confirmar Nueva Contraseña</Label>
+              <Label htmlFor="confirm">Confirmar Nueva ContraseÃ±a</Label>
               <Input id="confirm" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
             </div>
-            <Button onClick={handleChangePassword} disabled={!currentPassword || !newPassword}>Actualizar Contraseña</Button>
+            <Button onClick={handleChangePassword} disabled={!currentPassword || !newPassword}>Actualizar ContraseÃ±a</Button>
           </CardContent>
         </Card>
       </div>

@@ -47,11 +47,11 @@ const Footer = () => {
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3 text-sm text-primary-foreground/80">
                 <Phone className="h-4 w-4 text-primary" />
-                <span>+506 2643-1234</span>
+                <span>+506 2643-1333</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-primary-foreground/80">
                 <Mail className="h-4 w-4 text-primary" />
-                <span>info@pisoskermy.cr</span>
+                <span>pisoskermy@gmail.com</span>
               </div>
               <div className="flex items-start gap-3 text-sm text-primary-foreground/80">
                 <MapPin className="h-4 w-4 text-primary mt-0.5" />
@@ -66,10 +66,10 @@ const Footer = () => {
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-3 text-sm text-primary-foreground/80">
                 <Clock className="h-4 w-4 text-primary" />
-                <span>Lun - Vie: 8:00 - 17:00</span>
+                <span>Lun - Vie: 9:00 - 17:00</span>
               </div>
               <div className="text-sm text-primary-foreground/80 pl-7">
-                Sáb: 8:00 - 12:00
+                Sáb: 9:00 - 12:00
               </div>
               <div className="text-sm text-primary-foreground/80 pl-7">
                 Dom: Cerrado

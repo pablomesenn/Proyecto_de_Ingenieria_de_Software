@@ -1,87 +1,231 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Heart, 
-  ShoppingBag, 
-  ArrowLeft, 
+import {
+  Heart,
+  ShoppingBag,
+  ArrowLeft,
   Check,
   ChevronRight,
   Minus,
-  Plus
+  Plus,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import MainLayout from "@/components/layout/MainLayout";
 import { cn } from "@/lib/utils";
-
-// Mock product data
-const productData = {
-  id: "1",
-  name: "Porcelanato Terrazo Blanco",
-  category: "Porcelanato",
-  description: "Porcelanato de alta calidad con acabado terrazo, ideal para interiores modernos. Su diseño atemporal combina perfectamente con cualquier estilo de decoración, aportando elegancia y sofisticación a tus espacios.",
-  tags: ["Interior", "Moderno", "Premium"],
-  images: [
-    "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=800&fit=crop",
-    "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&h=800&fit=crop",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800&h=800&fit=crop",
-  ],
-  variants: [
-    { id: "v1", size: "60x60 cm", available: true, stock: 150 },
-    { id: "v2", size: "80x80 cm", available: true, stock: 75 },
-    { id: "v3", size: "120x60 cm", available: false, stock: 0 },
-  ],
-  specs: [
-    { label: "Material", value: "Porcelanato esmaltado" },
-    { label: "Acabado", value: "Pulido" },
-    { label: "Resistencia", value: "PEI 4" },
-    { label: "Uso", value: "Residencial y comercial ligero" },
-  ],
-};
-
-const relatedProducts = [
-  {
-    id: "2",
-    name: "Mármol Calacatta Gold",
-    category: "Mármol",
-    image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&h=400&fit=crop",
-    available: true,
-  },
-  {
-    id: "5",
-    name: "Porcelanato Madera Natural",
-    category: "Porcelanato",
-    image: "https://images.unsplash.com/photo-1615529328331-f8917597711f?w=400&h=400&fit=crop",
-    available: true,
-  },
-];
+import * as productsApi from "@/api/products";
+import * as inventoryApi from "@/api/inventory";
+import { useWishlist } from "@/contexts/WishlistContext";
+import { useToast } from "@/hooks/use-toast";
 
 const ProductDetail = () => {
   const { id } = useParams();
+  const { toast } = useToast();
+  const { addItem: addToWishlist } = useWishlist();
+
+  const [product, setProduct] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedVariant, setSelectedVariant] = useState(productData.variants[0]);
+  const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
+  const [variantInventory, setVariantInventory] = useState<any | null>(null);
+  const [loadingInventory, setLoadingInventory] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [addingToWishlist, setAddingToWishlist] = useState(false);
+
+  useEffect(() => {
+    const loadProduct = async () => {
+      if (!id) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const productData = await productsApi.getProductDetail(id);
+        const mappedProduct = productsApi.mapProductToUI(productData);
+        setProduct(mappedProduct);
+
+        // Select first variant (will load inventory after)
+        if (mappedProduct.variants.length > 0) {
+          setSelectedVariant(mappedProduct.variants[0]);
+        }
+      } catch (err) {
+        console.error("Error loading product:", err);
+        setError("No se pudo cargar el producto");
+        toast({
+          title: "Error",
+          description: "No se pudo cargar el producto",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProduct();
+  }, [id, toast]);
+
+  // Load inventory when variant changes
+  useEffect(() => {
+    const loadInventory = async () => {
+      if (!selectedVariant) return;
+
+      setLoadingInventory(true);
+      try {
+        const inventory = await inventoryApi.getInventoryByVariant(
+          selectedVariant.id,
+        );
+        setVariantInventory(inventory);
+
+        // Update available stock in selected variant
+        setSelectedVariant((prev: any) => ({
+          ...prev,
+          stock: inventory.stock_disponible,
+          available: inventory.disponible && inventory.stock_disponible > 0,
+        }));
+
+        // Reset quantity if exceeds available stock
+        if (quantity > inventory.stock_disponible) {
+          setQuantity(Math.max(1, inventory.stock_disponible));
+        }
+      } catch (err) {
+        console.error("Error loading inventory:", err);
+        // Don't show error toast, just log it
+        // Product might not have inventory record yet
+        setVariantInventory(null);
+      } finally {
+        setLoadingInventory(false);
+      }
+    };
+
+    loadInventory();
+  }, [selectedVariant?.id]);
 
   const handleQuantityChange = (delta: number) => {
-    setQuantity(prev => Math.max(1, Math.min(prev + delta, selectedVariant.stock || 99)));
+    if (!variantInventory) return;
+
+    const maxStock = variantInventory.stock_disponible || 0;
+    setQuantity((prev) => Math.max(1, Math.min(prev + delta, maxStock)));
   };
+
+  const handleVariantChange = (variant: any) => {
+    setSelectedVariant(variant);
+    setQuantity(1);
+    setVariantInventory(null);
+  };
+
+  const handleAddToWishlist = async () => {
+    if (!selectedVariant || !variantInventory?.disponible) return;
+
+    setAddingToWishlist(true);
+    try {
+      await addToWishlist(selectedVariant.id, quantity);
+      setIsWishlisted(true);
+      toast({
+        title: "Agregado a lista de interés",
+        description: `${quantity} unidad(es) de ${product.name} agregadas`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "No se pudo agregar a la lista",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingToWishlist(false);
+    }
+  };
+
+  const getStockStatus = () => {
+    if (!variantInventory) {
+      return {
+        message: "Verificando disponibilidad...",
+        color: "text-muted-foreground",
+        dotColor: "bg-muted-foreground",
+      };
+    }
+
+    if (
+      !variantInventory.disponible ||
+      variantInventory.stock_disponible === 0
+    ) {
+      return {
+        message: "No disponible",
+        color: "text-destructive",
+        dotColor: "bg-destructive",
+      };
+    }
+
+    if (variantInventory.stock_disponible < 10) {
+      return {
+        message: `Pocas unidades (${variantInventory.stock_disponible} disponibles)`,
+        color: "text-yellow-600",
+        dotColor: "bg-yellow-600",
+      };
+    }
+
+    return {
+      message: `Disponible (${variantInventory.stock_disponible} unidades)`,
+      color: "text-success",
+      dotColor: "bg-success",
+    };
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="container py-16 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <MainLayout>
+        <div className="container py-16 text-center">
+          <p className="text-destructive mb-4">
+            {error || "Producto no encontrado"}
+          </p>
+          <Button variant="outline" asChild>
+            <Link to="/catalog">Volver al catálogo</Link>
+          </Button>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const stockStatus = getStockStatus();
+  const canAddToWishlist =
+    variantInventory?.disponible && variantInventory?.stock_disponible > 0;
 
   return (
     <MainLayout>
       <div className="container py-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-          <Link to="/catalog" className="hover:text-foreground transition-colors">
+          <Link
+            to="/catalog"
+            className="hover:text-foreground transition-colors"
+          >
             Catálogo
           </Link>
           <ChevronRight className="h-4 w-4" />
-          <Link to={`/catalog?category=${productData.category.toLowerCase()}`} className="hover:text-foreground transition-colors">
-            {productData.category}
+          <Link
+            to={`/catalog?category=${product.category.toLowerCase()}`}
+            className="hover:text-foreground transition-colors"
+          >
+            {product.category}
           </Link>
           <ChevronRight className="h-4 w-4" />
-          <span className="text-foreground">{productData.name}</span>
+          <span className="text-foreground">{product.name}</span>
         </nav>
 
         {/* Back Button (Mobile) */}
@@ -97,71 +241,51 @@ const ProductDetail = () => {
           <div className="space-y-4">
             <div className="aspect-square rounded-lg overflow-hidden bg-muted">
               <img
-                src={productData.images[selectedImage]}
-                alt={productData.name}
+                src={product.image}
+                alt={product.name}
                 className="w-full h-full object-cover"
               />
-            </div>
-            <div className="flex gap-3">
-              {productData.images.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImage(index)}
-                  className={cn(
-                    "w-20 h-20 rounded-md overflow-hidden border-2 transition-colors",
-                    selectedImage === index ? "border-primary" : "border-transparent"
-                  )}
-                >
-                  <img
-                    src={image}
-                    alt={`${productData.name} ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
             </div>
           </div>
 
           {/* Product Info */}
           <div className="space-y-6">
             <div>
-              <Badge variant="category" className="mb-3">{productData.category}</Badge>
+              <Badge variant="category" className="mb-3">
+                {product.category}
+              </Badge>
               <h1 className="text-3xl md:text-4xl font-display font-bold mb-4">
-                {productData.name}
+                {product.name}
               </h1>
               <p className="text-muted-foreground leading-relaxed">
-                {productData.description}
+                {product.description || "Producto de alta calidad."}
               </p>
             </div>
 
             {/* Tags */}
-            <div className="flex flex-wrap gap-2">
-              {productData.tags.map(tag => (
-                <Badge key={tag} variant="tag">{tag}</Badge>
-              ))}
-            </div>
+            {product.tags && product.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {product.tags.map((tag: string) => (
+                  <Badge key={tag} variant="tag">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
 
             {/* Size Variants */}
             <div className="space-y-3">
               <h3 className="font-medium">Tamaño</h3>
               <div className="flex flex-wrap gap-3">
-                {productData.variants.map((variant) => (
+                {product.variants.map((variant: any) => (
                   <button
                     key={variant.id}
-                    onClick={() => {
-                      if (variant.available) {
-                        setSelectedVariant(variant);
-                        setQuantity(1);
-                      }
-                    }}
-                    disabled={!variant.available}
+                    onClick={() => handleVariantChange(variant)}
                     className={cn(
                       "px-4 py-2 rounded-md border-2 text-sm font-medium transition-all",
-                      selectedVariant.id === variant.id
+                      selectedVariant?.id === variant.id
                         ? "border-primary bg-primary/5 text-primary"
-                        : variant.available
-                          ? "border-border hover:border-primary/50"
-                          : "border-border bg-muted text-muted-foreground cursor-not-allowed line-through"
+                        : "border-border hover:border-primary/50",
                     )}
                   >
                     {variant.size}
@@ -170,25 +294,40 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* Availability */}
+            {/* Availability with real-time inventory */}
             <div className="flex items-center gap-2">
-              {selectedVariant.available ? (
+              {loadingInventory ? (
                 <>
-                  <div className="h-2 w-2 rounded-full bg-success" />
-                  <span className="text-sm text-success">
-                    Disponible ({selectedVariant.stock} unidades)
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Verificando disponibilidad...
                   </span>
                 </>
               ) : (
                 <>
-                  <div className="h-2 w-2 rounded-full bg-destructive" />
-                  <span className="text-sm text-destructive">No disponible</span>
+                  <div
+                    className={cn("h-2 w-2 rounded-full", stockStatus.dotColor)}
+                  />
+                  <span className={cn("text-sm", stockStatus.color)}>
+                    {stockStatus.message}
+                  </span>
                 </>
               )}
             </div>
 
+            {/* Stock retention info */}
+            {variantInventory && variantInventory.stock_retenido > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-sm">
+                <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <p className="text-muted-foreground">
+                  {variantInventory.stock_retenido} unidades en proceso de
+                  reserva
+                </p>
+              </div>
+            )}
+
             {/* Quantity & Actions */}
-            {selectedVariant.available && (
+            {canAddToWishlist && (
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium">Cantidad:</span>
@@ -198,17 +337,22 @@ const ProductDetail = () => {
                       size="icon"
                       className="h-10 w-10 rounded-r-none"
                       onClick={() => handleQuantityChange(-1)}
-                      disabled={quantity <= 1}
+                      disabled={quantity <= 1 || loadingInventory}
                     >
                       <Minus className="h-4 w-4" />
                     </Button>
-                    <span className="w-12 text-center font-medium">{quantity}</span>
+                    <span className="w-12 text-center font-medium">
+                      {quantity}
+                    </span>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-10 w-10 rounded-l-none"
                       onClick={() => handleQuantityChange(1)}
-                      disabled={quantity >= selectedVariant.stock}
+                      disabled={
+                        quantity >= (variantInventory?.stock_disponible || 0) ||
+                        loadingInventory
+                      }
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -216,36 +360,49 @@ const ProductDetail = () => {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button className="flex-1" size="lg">
-                    <ShoppingBag className="h-5 w-5 mr-2" />
-                    Reservar Ahora
+                  <Button
+                    className="flex-1"
+                    size="lg"
+                    onClick={handleAddToWishlist}
+                    disabled={
+                      addingToWishlist || loadingInventory || !canAddToWishlist
+                    }
+                  >
+                    {addingToWishlist ? (
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    ) : (
+                      <ShoppingBag className="h-5 w-5 mr-2" />
+                    )}
+                    Agregar a Lista
                   </Button>
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={() => setIsWishlisted(!isWishlisted)}
-                    className={cn(isWishlisted && "text-primary border-primary")}
+                    onClick={handleAddToWishlist}
+                    disabled={
+                      addingToWishlist || loadingInventory || !canAddToWishlist
+                    }
+                    className={cn(
+                      isWishlisted && "text-primary border-primary",
+                    )}
                   >
-                    <Heart className={cn("h-5 w-5", isWishlisted && "fill-current")} />
+                    <Heart
+                      className={cn("h-5 w-5", isWishlisted && "fill-current")}
+                    />
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* Specifications */}
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="font-display font-semibold mb-3">Especificaciones</h3>
-                <dl className="grid grid-cols-2 gap-3">
-                  {productData.specs.map((spec) => (
-                    <div key={spec.label}>
-                      <dt className="text-xs text-muted-foreground">{spec.label}</dt>
-                      <dd className="text-sm font-medium">{spec.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </CardContent>
-            </Card>
+            {/* Out of stock message */}
+            {!canAddToWishlist && !loadingInventory && (
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <p className="text-sm text-muted-foreground">
+                  Este tamaño no está disponible actualmente. Por favor
+                  selecciona otro tamaño o revisa más tarde.
+                </p>
+              </div>
+            )}
 
             {/* Reservation Note */}
             <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
@@ -253,46 +410,14 @@ const ProductDetail = () => {
               <div className="text-sm">
                 <p className="font-medium">Proceso de Reserva</p>
                 <p className="text-muted-foreground">
-                  Al reservar, recibirás una confirmación en un plazo de 24 horas hábiles. 
-                  La reserva estará activa por 7 días.
+                  Al agregar a tu lista de interés, podrás crear una reserva más
+                  adelante. Las reservas requieren confirmación en 24 horas
+                  hábiles.
                 </p>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Related Products */}
-        <section className="mt-16">
-          <h2 className="text-2xl font-display font-bold mb-6">
-            Productos Relacionados
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {relatedProducts.map((product) => (
-              <Link 
-                key={product.id}
-                to={`/catalog/${product.id}`}
-                className="group block"
-              >
-                <div className="relative aspect-square rounded-lg overflow-hidden bg-muted mb-3">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <div className="absolute top-3 left-3">
-                    <Badge variant={product.available ? "available" : "unavailable"}>
-                      {product.available ? "Disponible" : "Agotado"}
-                    </Badge>
-                  </div>
-                </div>
-                <Badge variant="category" className="mb-2">{product.category}</Badge>
-                <h3 className="font-display font-semibold group-hover:text-primary transition-colors">
-                  {product.name}
-                </h3>
-              </Link>
-            ))}
-          </div>
-        </section>
       </div>
     </MainLayout>
   );

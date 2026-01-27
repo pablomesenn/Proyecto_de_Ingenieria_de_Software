@@ -29,32 +29,32 @@ def create_app(config_name=None):
     Crea y configura la aplicación Flask
     """
     app = Flask(__name__)
-    
+
     # Cargar configuración
     if config_name is None:
         config_name = os.getenv('FLASK_ENV', 'development')
-    
+
     config_class = get_config()
     app.config.from_object(config_class)
-    
+
     # Configurar logging
     setup_logging(app)
-    
+
     # Inicializar extensiones
     init_extensions(app)
-    
+
     # Inicializar bases de datos
     init_db(app)
-    
+
     # Registrar blueprints (rutas)
     register_blueprints(app)
-    
+
     # Registrar manejadores de errores
     register_error_handlers(app)
-    
+
     # Registrar eventos de cierre
     register_teardown(app)
-    
+
     # Ruta de health check
     @app.route('/health', methods=['GET'])
     def health_check():
@@ -64,7 +64,7 @@ def create_app(config_name=None):
             'service': 'Pisos Kermy API',
             'version': '1.0.0'
         }), 200
-    
+
     # Ruta raíz
     @app.route('/', methods=['GET'])
     def index():
@@ -83,9 +83,9 @@ def create_app(config_name=None):
                 'admin': '/api/admin'
             }
         }), 200
-    
+
     app.logger.info("✓ Aplicación Flask inicializada correctamente")
-    
+
     return app
 
 
@@ -94,21 +94,24 @@ def init_extensions(app):
     Inicializa las extensiones de Flask
     """
     # CORS
-    CORS(app, 
+    CORS(app,
          origins=app.config['CORS_ORIGINS'],
          supports_credentials=app.config['CORS_SUPPORTS_CREDENTIALS'],
-         resources={r"/api/*": {"origins": "http://localhost:8080"}})
-    
+         resources={r"/api/*": {"origins": "http://localhost:8080"}},
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+
+
     # JWT
     jwt.init_app(app)
-    
+
     # Configurar callbacks de JWT
     setup_jwt_callbacks(app)
-    
+
     # Rate Limiter
     limiter.init_app(app)
     limiter.storage_uri = app.config['RATELIMIT_STORAGE_URL']
-    
+
     app.logger.info("✓ Extensiones inicializadas")
 
 
@@ -122,21 +125,21 @@ def setup_jwt_callbacks(app):
             'error': 'token_expired',
             'message': 'El token ha expirado'
         }), 401
-    
+
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
         return jsonify({
             'error': 'invalid_token',
             'message': 'Token inválido'
         }), 401
-    
+
     @jwt.unauthorized_loader
     def missing_token_callback(error):
         return jsonify({
             'error': 'missing_token',
             'message': 'Token de autorización no proporcionado'
         }), 401
-    
+
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):
         return jsonify({
@@ -148,7 +151,7 @@ def setup_jwt_callbacks(app):
 def register_blueprints(app):
     """
     Registra todos los blueprints (rutas) de la aplicación
-    
+
     from app.routes.auth_routes import auth_bp
     from app.routes.user_routes import user_bp
     from app.routes.product_routes import product_bp
@@ -156,7 +159,7 @@ def register_blueprints(app):
     from app.routes.wishlist_routes import wishlist_bp
     from app.routes.reservation_routes import reservation_bp
     from app.routes.admin_routes import admin_bp
-    
+
     # Registrar con prefijo /api
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(user_bp, url_prefix='/api/users')
@@ -188,20 +191,20 @@ def setup_logging(app):
         # Crear directorio de logs si no existe
         if not os.path.exists('logs'):
             os.mkdir('logs')
-        
+
         # Configurar handler de archivo
         file_handler = RotatingFileHandler(
             f"logs/{app.config['LOG_FILE']}",
             maxBytes=10240000,  # 10MB
             backupCount=10
         )
-        
+
         file_handler.setFormatter(logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
         ))
-        
+
         file_handler.setLevel(getattr(logging, app.config['LOG_LEVEL']))
         app.logger.addHandler(file_handler)
-    
+
     app.logger.setLevel(getattr(logging, app.config['LOG_LEVEL']))
     app.logger.info('✓ Sistema de logging configurado')
