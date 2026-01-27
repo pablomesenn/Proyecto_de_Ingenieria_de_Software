@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
+import AuthRequired from "@/components/auth/AuthRequired";
 import {
   CalendarClock,
   ArrowRight,
@@ -38,6 +40,7 @@ import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 
 const Reservations = () => {
+  const { user } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +49,12 @@ const Reservations = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadReservations();
-  }, []);
+    if (user) {
+      loadReservations();
+    } else {
+      setIsLoading(false);
+    }
+  }, [user]);
 
   const loadReservations = async () => {
     try {
@@ -153,6 +160,20 @@ const Reservations = () => {
     }
   };
 
+  // Check if user is authenticated
+  if (!user) {
+    return (
+      <MainLayout>
+        <div className="container py-8">
+          <AuthRequired
+            message="Necesitas ingresar con una cuenta para acceder a tus reservas"
+            icon={<CalendarClock className="h-10 w-10 text-muted-foreground" />}
+          />
+        </div>
+      </MainLayout>
+    );
+  }
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -245,7 +266,6 @@ const Reservations = () => {
               return (
                 <Card key={reservation._id} className="overflow-hidden">
                   <CardContent className="p-0">
-                    {/* Header */}
                     <div className={`p-4 ${stateConfig.bgColor}`}>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
@@ -282,9 +302,7 @@ const Reservations = () => {
 
                     <Separator />
 
-                    {/* Content */}
                     <div className="p-4 space-y-4">
-                      {/* Items Summary */}
                       <div className="flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-2">
                           <Package className="h-4 w-4 text-muted-foreground" />
@@ -297,7 +315,6 @@ const Reservations = () => {
                         </div>
                       </div>
 
-                      {/* Items List */}
                       <div className="space-y-2">
                         {reservation.items.map((item, index) => (
                           <div
@@ -320,7 +337,6 @@ const Reservations = () => {
                         ))}
                       </div>
 
-                      {/* Notes */}
                       {reservation.notes && (
                         <div className="p-3 rounded-lg bg-muted/30 border border-border">
                           <p className="text-sm font-medium mb-1">Tus notas:</p>
@@ -330,7 +346,6 @@ const Reservations = () => {
                         </div>
                       )}
 
-                      {/* Admin Notes */}
                       {reservation.admin_notes && (
                         <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                           <p className="text-sm font-medium mb-1 text-primary">
@@ -342,7 +357,6 @@ const Reservations = () => {
                         </div>
                       )}
 
-                      {/* Actions */}
                       {isCancellable && (
                         <div className="flex justify-end pt-2">
                           <Button
@@ -373,7 +387,6 @@ const Reservations = () => {
           </div>
         )}
 
-        {/* Confirmation Dialog */}
         <AlertDialog
           open={confirmCancelId !== null}
           onOpenChange={(open) => !open && setConfirmCancelId(null)}
