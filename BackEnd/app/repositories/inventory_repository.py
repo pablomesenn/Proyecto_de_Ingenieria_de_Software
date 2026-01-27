@@ -88,6 +88,37 @@ class InventoryRepository:
 
         return list(self.collection.aggregate(pipeline))
 
+    def create_initial_stock(self, variant_id, initial_stock, actor_id, reason='Inventario inicial'):
+        """Crea un registro de inventario inicial para una variante nueva"""
+        from app.models.inventory import Inventory
+        
+        # Verificar si ya existe un registro de inventario para esta variante
+        existing = self.find_by_variant_id(variant_id)
+        if existing:
+            # Si ya existe, ajustar el stock
+            return self.adjust_stock(variant_id, initial_stock, reason, actor_id)
+        
+        # Crear nuevo registro de inventario
+        inventory = Inventory(
+            variant_id=ObjectId(variant_id),
+            stock_total=initial_stock,
+            stock_retenido=0
+        )
+        
+        result = self.collection.insert_one(inventory.to_dict())
+        
+        # Registrar movimiento
+        if initial_stock > 0:
+            self._log_movement(
+                variant_id=variant_id,
+                quantity=initial_stock,
+                movement_type='initial',
+                reason=reason,
+                actor_id=actor_id
+            )
+        
+        return self.collection.find_one({'_id': result.inserted_id})
+
     def create(self, inventory):
         result = self.collection.insert_one(inventory.to_dict())
 
@@ -205,7 +236,7 @@ class InventoryRepository:
         return result.modified_count > 0
 
     def _log_movement(self, variant_id, quantity, movement_type, reason, actor_id=None):
-        """Registra un movimiento de inventario en la bitácora"""
+        """Registra un movimiento de inventario en la bitÃ¡cora"""
         movement = {
             'variant_id': ObjectId(variant_id),
             'quantity': quantity,

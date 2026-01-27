@@ -1,4 +1,4 @@
-import { apiGet } from "./http";
+import { apiGet, apiPost, apiPut, apiDelete } from "./http";
 
 // Types based on backend schemas
 export type ProductCategory =
@@ -15,7 +15,7 @@ export type ProductTag =
   | "Exterior"
   | "Antideslizante"
   | "Premium"
-  | "Rústico"
+  | "Rustico"
   | "Moderno"
   | string;
 
@@ -101,6 +101,63 @@ export async function getProducts(
 
 export async function getProductDetail(productId: string): Promise<Product> {
   return apiGet<Product>(`/api/products/${productId}`);
+}
+
+export interface CreateProductRequest {
+  nombre: string;
+  imagen_url: string;
+  categoria: string;
+  tags?: string[];
+  estado?: "activo" | "inactivo" | "agotado";
+  descripcion_embalaje?: string;
+  variantes: Array<{
+    tamano_pieza: string;
+    unidad?: string;
+    precio?: number;
+    stock_inicial?: number;
+  }>;
+}
+
+export interface UpdateProductRequest {
+  nombre?: string;
+  imagen_url?: string;
+  categoria?: string;
+  tags?: string[];
+  estado?: "activo" | "inactivo" | "agotado";
+  descripcion_embalaje?: string;
+  variantes?: Array<{
+    _id?: string;
+    tamano_pieza: string;
+    unidad?: string;
+    precio?: number;
+    stock_inicial?: number;
+  }>;
+}
+
+export async function createProduct(
+  data: CreateProductRequest
+): Promise<{ message: string; product: Product }> {
+  return apiPost<{ message: string; product: Product }>("/api/products/", data);
+}
+
+export async function updateProduct(
+  productId: string,
+  data: UpdateProductRequest
+): Promise<{ message: string; product: Product }> {
+  return apiPut<{ message: string; product: Product }>(`/api/products/${productId}`, data);
+}
+
+export async function updateProductState(
+  productId: string,
+  estado: "activo" | "inactivo" | "agotado"
+): Promise<{ message: string }> {
+  return apiPut<{ message: string }>(`/api/products/${productId}/state`, { estado });
+}
+
+export async function deleteProduct(
+  productId: string
+): Promise<{ message: string }> {
+  return apiDelete<{ message: string }>(`/api/products/${productId}`);
 }
 
 export async function getCategories(): Promise<CategoriesResponse> {

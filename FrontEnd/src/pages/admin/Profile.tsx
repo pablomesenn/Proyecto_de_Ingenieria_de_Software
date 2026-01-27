@@ -27,7 +27,7 @@ const Profile = () => {
     try {
       setIsLoading(true);
       const updatedUser = await updateProfileService({ name, phone });
-      updateAuthProfile(updatedUser);
+      updateAuthProfile(updatedUser as unknown as Partial<typeof user>);
       toast.success("Perfil actualizado correctamente");
     } catch (error) {
       toast.error("Error al actualizar el perfil");

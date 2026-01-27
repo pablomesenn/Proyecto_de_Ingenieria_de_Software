@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   convertWishlistToReservation,
   validateWishlistForReservation,
+  WishlistItem,
 } from "@/api/wishlist";
 import {
   Package,
@@ -126,7 +127,7 @@ const CreateReservationDialog = ({
 
       // Validate before submitting
       const validation = validateWishlistForReservation(
-        items.filter((item) => selectedItems.has(item.itemId)),
+        items.filter((item) => selectedItems.has(item.itemId)) as unknown as WishlistItem[],
       );
 
       if (!validation.valid) {
@@ -207,7 +208,7 @@ const CreateReservationDialog = ({
         <div className="flex-1 overflow-hidden flex flex-col gap-4">
           {/* Info Alerts */}
           {unavailableItems.length > 0 && (
-            <Alert variant="warning">
+            <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 {unavailableItems.length} producto(s) no se pueden reservar por
@@ -216,7 +217,7 @@ const CreateReservationDialog = ({
             </Alert>
           )}
 
-          <Alert>
+          <Alert variant="default">
             <Calendar className="h-4 w-4" />
             <AlertDescription className="text-xs">
               Las reservas tienen una validez de 7 días y requieren confirmación

@@ -28,6 +28,14 @@ class ProductSearchSchema(Schema):
         return data
 
 
+class VariantInputSchema(Schema):
+    _id = fields.Str(required=False, allow_none=True)  # Para identificar variantes existentes
+    tamano_pieza = fields.Str(required=True, validate=validate.Length(min=1, max=50))
+    unidad = fields.Str(required=False, missing='m²')
+    precio = fields.Float(required=False, allow_none=True, validate=validate.Range(min=0))
+    stock_inicial = fields.Int(required=False, missing=0, validate=validate.Range(min=0))
+
+
 class CreateProductSchema(Schema):
     nombre = fields.Str(required=True, validate=validate.Length(min=1, max=255))
     imagen_url = fields.Str(required=True)
@@ -39,6 +47,7 @@ class CreateProductSchema(Schema):
         validate=validate.OneOf(['activo', 'inactivo', 'agotado'])
     )
     descripcion_embalaje = fields.Str(required=False, allow_none=True)
+    variantes = fields.List(fields.Nested(VariantInputSchema), required=False, missing=[])
 
 
 class UpdateProductSchema(Schema):
@@ -51,6 +60,7 @@ class UpdateProductSchema(Schema):
         validate=validate.OneOf(['activo', 'inactivo', 'agotado'])
     )
     descripcion_embalaje = fields.Str(required=False, allow_none=True)
+    variantes = fields.List(fields.Nested(VariantInputSchema), required=False)
 
 
 class UpdateProductStateSchema(Schema):
@@ -63,7 +73,7 @@ class UpdateProductStateSchema(Schema):
 class CreateVariantSchema(Schema):
     product_id = fields.Str(required=True)
     tamano_pieza = fields.Str(required=True)
-    unidad = fields.Str(required=False, missing='m²')
+    unidad = fields.Str(required=False, missing='mÂ²')
     precio = fields.Float(required=False, allow_none=True, validate=validate.Range(min=0))
 
 
