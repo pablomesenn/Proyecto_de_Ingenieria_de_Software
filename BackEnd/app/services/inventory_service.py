@@ -203,7 +203,8 @@ class InventoryService:
         success = self.inventory_repo.increase_retained_stock(
             variant_id=variant_id,
             quantity=quantity,
-            reason=reason or 'manual_retention'
+            reason=reason or 'manual_retention',
+            actor_id=actor_id
         )
 
         if not success:
@@ -233,7 +234,8 @@ class InventoryService:
         success = self.inventory_repo.decrease_retained_stock(
             variant_id=variant_id,
             quantity=quantity,
-            reason=reason or 'manual_release'
+            reason=reason or 'manual_release',
+            actor_id=actor_id
         )
 
         if not success:
@@ -297,3 +299,8 @@ class InventoryService:
         }
 
         db.audit_logs.insert_one(audit_log)
+    
+    def get_inventory_movements_detailed(self, skip=0, limit=50, filters=None):
+        return self.inventory_repo.get_movements_detailed(skip=skip, limit=limit, filters=filters)
+ 
+

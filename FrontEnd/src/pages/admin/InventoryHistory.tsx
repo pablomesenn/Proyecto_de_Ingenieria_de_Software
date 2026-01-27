@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { fetchInventoryMovements, type InventoryMovement } from "@/api/inventory";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -30,185 +31,182 @@ import {
   RefreshCw,
   Calendar,
   Download,
+  Loader2,
 } from "lucide-react";
 
-// Mock data - extended history
-const movementHistory = [
-  {
-    id: "1",
-    date: "2024-01-15 14:30",
-    product: "Porcelanato Terrazo Blanco",
-    variant: "60x60",
-    type: "entrada" as const,
-    quantity: 50,
-    previousStock: 70,
-    newStock: 120,
-    reason: "Recepción de proveedor",
-    user: "Admin",
-  },
-  {
-    id: "2",
-    date: "2024-01-15 10:15",
-    product: "Mármol Calacatta Gold",
-    variant: "80x160",
-    type: "salida" as const,
-    quantity: -10,
-    previousStock: 12,
-    newStock: 2,
-    reason: "Venta completada",
-    user: "Admin",
-  },
-  {
-    id: "3",
-    date: "2024-01-14 16:45",
-    product: "Cerámica Subway Blanca",
-    variant: "10x20",
-    type: "ajuste" as const,
-    quantity: -5,
-    previousStock: 13,
-    newStock: 8,
-    reason: "Corrección de inventario",
-    user: "Admin",
-  },
-  {
-    id: "4",
-    date: "2024-01-14 09:00",
-    product: "Granito Negro Galaxy",
-    variant: "60x60",
-    type: "entrada" as const,
-    quantity: 100,
-    previousStock: 56,
-    newStock: 156,
-    reason: "Recepción de proveedor",
-    user: "Admin",
-  },
-  {
-    id: "5",
-    date: "2024-01-13 15:20",
-    product: "Porcelanato Terrazo Blanco",
-    variant: "80x80",
-    type: "reserva" as const,
-    quantity: -8,
-    previousStock: 93,
-    newStock: 85,
-    reason: "Reserva RES-001",
-    user: "Sistema",
-  },
-  {
-    id: "6",
-    date: "2024-01-13 11:00",
-    product: "Mármol Calacatta Gold",
-    variant: "60x120",
-    type: "entrada" as const,
-    quantity: 30,
-    previousStock: 15,
-    newStock: 45,
-    reason: "Recepción de proveedor",
-    user: "Admin",
-  },
-  {
-    id: "7",
-    date: "2024-01-12 17:30",
-    product: "Cerámica Rústica Terracota",
-    variant: "30x30",
-    type: "salida" as const,
-    quantity: -25,
-    previousStock: 25,
-    newStock: 0,
-    reason: "Venta completada",
-    user: "Admin",
-  },
-  {
-    id: "8",
-    date: "2024-01-12 09:15",
-    product: "Porcelanato Terrazo Blanco",
-    variant: "120x60",
-    type: "ajuste" as const,
-    quantity: 5,
-    previousStock: 35,
-    newStock: 40,
-    reason: "Corrección tras conteo físico",
-    user: "Admin",
-  },
-  {
-    id: "9",
-    date: "2024-01-11 14:00",
-    product: "Granito Negro Galaxy",
-    variant: "60x60",
-    type: "reserva" as const,
-    quantity: -20,
-    previousStock: 176,
-    newStock: 156,
-    reason: "Reserva RES-002",
-    user: "Sistema",
-  },
-  {
-    id: "10",
-    date: "2024-01-10 10:30",
-    product: "Cerámica Subway Blanca",
-    variant: "10x20",
-    type: "entrada" as const,
-    quantity: 200,
-    previousStock: 0,
-    newStock: 200,
-    reason: "Recepción inicial de proveedor",
-    user: "Admin",
-  },
-];
+/**
+ * UI filters ("entrada/salida/ajuste/reserva") -> backend movement_type
+ * Ajusta estos arrays si tu backend usa otros valores.
+ */
+const TYPE_MAP: Record<string, string[] | undefined> = {
+  all: undefined,
+  entrada: ["initial", "increase", "in"],
+  salida: ["decrease", "out", "sale"],
+  ajuste: ["adjustment"],
+  reserva: ["retain", "release"],
+};
 
-const products = [...new Set(movementHistory.map((m) => m.product))];
+const typeConfig: Record<string, { label: string; icon: any; color: any }> = {
+  initial: { label: "Inicial", icon: History, color: "secondary" },
+  adjustment: { label: "Ajuste", icon: RefreshCw, color: "warning" },
+  retain: { label: "Retención", icon: Calendar, color: "secondary" },
+  release: { label: "Liberación", icon: Calendar, color: "secondary" },
+  increase: { label: "Entrada", icon: TrendingUp, color: "success" },
+  in: { label: "Entrada", icon: TrendingUp, color: "success" },
+  decrease: { label: "Salida", icon: TrendingDown, color: "destructive" },
+  out: { label: "Salida", icon: TrendingDown, color: "destructive" },
+  sale: { label: "Salida", icon: TrendingDown, color: "destructive" },
+};
+
+function formatDate(value?: string | Date | null) {
+  if (!value) return "";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString();
+}
+
+function toISODateOnly(value?: string | Date | null) {
+  if (!value) return "";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 const InventoryHistory = () => {
+  // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [productFilter, setProductFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const filteredHistory = movementHistory.filter((movement) => {
-    if (
-      searchQuery &&
-      !movement.product.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !movement.reason.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !movement.user.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
-      return false;
-    }
-    if (productFilter !== "all" && movement.product !== productFilter) {
-      return false;
-    }
-    if (typeFilter !== "all" && movement.type !== typeFilter) {
-      return false;
-    }
-    // Date filtering would be implemented with actual date comparison
-    return true;
-  });
+  // Data
+  const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const typeConfig = {
-    entrada: { label: "Entrada", icon: TrendingUp, color: "success" as const },
-    salida: { label: "Salida", icon: TrendingDown, color: "destructive" as const },
-    ajuste: { label: "Ajuste", icon: RefreshCw, color: "warning" as const },
-    reserva: { label: "Reserva", icon: Calendar, color: "secondary" as const },
-  };
+  // Pagination / backend params
+  const [skip, setSkip] = useState(0);
+  const [limit] = useState(50);
+
+  // (Opcional) filtrar por una variante exacta si lo ocupas luego
+  const [variantId, setVariantId] = useState<string>("");
+
+  // Cargar movimientos desde backend
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+
+        // Si tu backend soporta filtrar por movement_type exacto,
+        // aquí NO enviamos "entrada/salida" porque son grupos.
+        // Mandamos undefined y filtramos en frontend con TYPE_MAP.
+        const res = await fetchInventoryMovements({
+          skip,
+          limit,
+          variant_id: variantId.trim() ? variantId.trim() : undefined,
+        });
+
+        setMovements(res.movements ?? []);
+      } catch (err) {
+        console.error(err);
+        setMovements([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [skip, limit, variantId]);
+
+  // Lista de productos para el Select
+  const products = useMemo(() => {
+    const names = (movements ?? [])
+      .map((m) => (m.product_name ?? "").trim())
+      .filter(Boolean);
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  }, [movements]);
+
+  // Filtrado total
+  const filteredHistory = useMemo(() => {
+    const allowedTypes = TYPE_MAP[typeFilter];
+
+    return (movements ?? []).filter((m) => {
+      // tipo
+      const matchesType = !allowedTypes ? true : allowedTypes.includes(m.movement_type);
+
+      // producto
+      const matchesProduct =
+        productFilter === "all" ? true : (m.product_name ?? "") === productFilter;
+
+      // búsqueda
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch = !q
+        ? true
+        : (
+            (m.product_name ?? "").toLowerCase().includes(q) ||
+            (m.variant_id ?? "").toLowerCase().includes(q) ||
+            (m.reason ?? "").toLowerCase().includes(q) ||
+            (m.actor_name ?? "").toLowerCase().includes(q)
+          );
+
+      // fechas (usa creado_en)
+      const mDate = toISODateOnly(m.creado_en);
+      const matchesDateFrom = dateFrom ? mDate >= dateFrom : true;
+      const matchesDateTo = dateTo ? mDate <= dateTo : true;
+
+      return matchesType && matchesProduct && matchesSearch && matchesDateFrom && matchesDateTo;
+    });
+  }, [movements, typeFilter, productFilter, searchQuery, dateFrom, dateTo]);
+
+  // Stats (sobre filteredHistory o sobre movements; aquí uso filteredHistory)
+  const stats = useMemo(() => {
+    const allowedEntrada = TYPE_MAP["entrada"] ?? [];
+    const allowedSalida = TYPE_MAP["salida"] ?? [];
+    const allowedAjuste = TYPE_MAP["ajuste"] ?? [];
+    const allowedReserva = TYPE_MAP["reserva"] ?? [];
+
+    const total = filteredHistory.length;
+    const entradas = filteredHistory.filter((m) => allowedEntrada.includes(m.movement_type)).length;
+    const salidas = filteredHistory.filter((m) => allowedSalida.includes(m.movement_type)).length;
+    const ajustes = filteredHistory.filter((m) => allowedAjuste.includes(m.movement_type)).length;
+    const reservas = filteredHistory.filter((m) => allowedReserva.includes(m.movement_type)).length;
+
+    return { total, entradas, salidas, ajustes, reservas };
+  }, [filteredHistory]);
 
   const handleExport = () => {
-    // In a real app, this would generate a CSV/Excel file
-    const csvContent = [
+    const csvRows: string[][] = [
       ["Fecha", "Producto", "Variante", "Tipo", "Cantidad", "Stock Anterior", "Stock Nuevo", "Razón", "Usuario"],
-      ...filteredHistory.map((m) => [
-        m.date,
-        m.product,
-        m.variant,
-        typeConfig[m.type].label,
-        m.quantity.toString(),
-        m.previousStock.toString(),
-        m.newStock.toString(),
-        m.reason,
-        m.user,
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
+      ...filteredHistory.map((m) => {
+        const cfg = typeConfig[m.movement_type] ?? { label: m.movement_type };
+
+        return [
+          formatDate(m.creado_en),
+          m.product_name ?? "",
+          m.variant_name ?? m.variant_id ?? "",
+          cfg.label,
+          String(m.quantity ?? ""),
+          String(m.stock_before ?? ""),
+          String(m.stock_after ?? ""),
+          m.reason ?? "",
+          m.actor_name ?? "",
+        ];
+      }),
+    ];
+
+    const csvContent = csvRows.map((row) =>
+      row.map((cell) => {
+        // Escape simple para CSV
+        const v = (cell ?? "").toString();
+        if (v.includes(",") || v.includes('"') || v.includes("\n")) {
+          return `"${v.replace(/"/g, '""')}"`;
+        }
+        return v;
+      }).join(",")
+    ).join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
@@ -231,7 +229,8 @@ const InventoryHistory = () => {
             <h1 className="text-2xl font-display font-bold">Historial de Inventario</h1>
             <p className="text-muted-foreground">Registro completo de movimientos de stock</p>
           </div>
-          <Button variant="outline" onClick={handleExport}>
+
+          <Button variant="outline" onClick={handleExport} disabled={filteredHistory.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Exportar CSV
           </Button>
@@ -246,14 +245,13 @@ const InventoryHistory = () => {
                   <TrendingUp className="h-5 w-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {movementHistory.filter((m) => m.type === "entrada").length}
-                  </p>
+                  <p className="text-2xl font-bold">{stats.entradas}</p>
                   <p className="text-xs text-muted-foreground">Entradas</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -261,14 +259,13 @@ const InventoryHistory = () => {
                   <TrendingDown className="h-5 w-5 text-destructive" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {movementHistory.filter((m) => m.type === "salida").length}
-                  </p>
+                  <p className="text-2xl font-bold">{stats.salidas}</p>
                   <p className="text-xs text-muted-foreground">Salidas</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -276,14 +273,13 @@ const InventoryHistory = () => {
                   <RefreshCw className="h-5 w-5 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {movementHistory.filter((m) => m.type === "ajuste").length}
-                  </p>
+                  <p className="text-2xl font-bold">{stats.ajustes}</p>
                   <p className="text-xs text-muted-foreground">Ajustes</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -291,7 +287,7 @@ const InventoryHistory = () => {
                   <History className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{movementHistory.length}</p>
+                  <p className="text-2xl font-bold">{stats.total}</p>
                   <p className="text-xs text-muted-foreground">Total Movimientos</p>
                 </div>
               </div>
@@ -308,7 +304,7 @@ const InventoryHistory = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
               <div className="lg:col-span-2 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -318,19 +314,21 @@ const InventoryHistory = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
+
               <Select value={productFilter} onValueChange={setProductFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Producto" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los productos</SelectItem>
-                  {products.map((product) => (
-                    <SelectItem key={product} value={product}>
-                      {product}
+                  {products.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
               <Select value={typeFilter} onValueChange={setTypeFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Tipo" />
@@ -343,11 +341,28 @@ const InventoryHistory = () => {
                   <SelectItem value="reserva">Reserva</SelectItem>
                 </SelectContent>
               </Select>
+
               <Input
                 type="date"
                 placeholder="Desde"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
+              />
+
+              <Input
+                type="date"
+                placeholder="Hasta"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+
+            {/* Extra (opcional): filtrar por variantId exacto */}
+            <div className="mt-4">
+              <Input
+                placeholder="Filtrar por Variant ID (opcional)..."
+                value={variantId}
+                onChange={(e) => setVariantId(e.target.value)}
               />
             </div>
           </CardContent>
@@ -356,11 +371,15 @@ const InventoryHistory = () => {
         {/* History Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Movimientos</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Movimientos
+              {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            </CardTitle>
             <CardDescription>
-              Mostrando {filteredHistory.length} de {movementHistory.length} registros
+              Mostrando {filteredHistory.length} de {movements.length} registros
             </CardDescription>
           </CardHeader>
+
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -376,8 +395,15 @@ const InventoryHistory = () => {
                   <TableHead>Usuario</TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
-                {filteredHistory.length === 0 ? (
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
+                      Cargando movimientos...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredHistory.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="h-32 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -387,47 +413,67 @@ const InventoryHistory = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredHistory.map((movement) => {
-                    const config = typeConfig[movement.type];
-                    const Icon = config.icon;
+                  filteredHistory.map((m) => {
+                    const cfg = typeConfig[m.movement_type] ?? {
+                      label: m.movement_type,
+                      icon: History,
+                      color: "secondary",
+                    };
+
+                    const Icon = cfg.icon;
+
+                    const qty = typeof m.quantity === "number" ? m.quantity : 0;
+
                     return (
-                      <TableRow key={movement.id}>
+                      <TableRow key={m._id}>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {movement.date}
+                          {formatDate(m.creado_en)}
                         </TableCell>
+
                         <TableCell className="font-medium max-w-[200px] truncate">
-                          {movement.product}
+                          {m.product_name ?? "—"}
                         </TableCell>
-                        <TableCell className="font-mono text-sm">{movement.variant}</TableCell>
+
+                        <TableCell className="font-mono text-sm">
+                          {m.variant_name ?? m.variant_id}
+                        </TableCell>
+
                         <TableCell>
-                          <Badge variant={config.color} className="gap-1">
+                          <Badge variant={cfg.color} className="gap-1">
                             <Icon className="h-3 w-3" />
-                            {config.label}
+                            {cfg.label}
                           </Badge>
                         </TableCell>
+
                         <TableCell className="text-center">
                           <span
                             className={
-                              movement.quantity > 0
+                              qty > 0
                                 ? "text-success font-medium"
-                                : "text-destructive font-medium"
+                                : qty < 0
+                                  ? "text-destructive font-medium"
+                                  : "text-muted-foreground font-medium"
                             }
                           >
-                            {movement.quantity > 0 ? "+" : ""}
-                            {movement.quantity}
+                            {qty > 0 ? "+" : ""}
+                            {qty}
                           </span>
                         </TableCell>
+
                         <TableCell className="text-center text-muted-foreground">
-                          {movement.previousStock}
+                          {m.stock_before ?? "—"}
                         </TableCell>
+
                         <TableCell className="text-center font-medium">
-                          {movement.newStock}
+                          {m.stock_after ?? "—"}
                         </TableCell>
+
                         <TableCell className="text-sm max-w-[200px] truncate">
-                          {movement.reason}
+                          {m.reason ?? "—"}
                         </TableCell>
+
                         <TableCell className="text-sm text-muted-foreground">
-                          {movement.user}
+                          {m.actor_name ?? "—"}
                         </TableCell>
                       </TableRow>
                     );
@@ -435,6 +481,29 @@ const InventoryHistory = () => {
                 )}
               </TableBody>
             </Table>
+
+            {/* Paginación simple (opcional) */}
+            <div className="flex items-center justify-between p-4">
+              <Button
+                variant="outline"
+                disabled={skip === 0 || loading}
+                onClick={() => setSkip((s) => Math.max(0, s - limit))}
+              >
+                Anterior
+              </Button>
+
+              <p className="text-sm text-muted-foreground">
+                Página {Math.floor(skip / limit) + 1}
+              </p>
+
+              <Button
+                variant="outline"
+                disabled={loading || movements.length < limit}
+                onClick={() => setSkip((s) => s + limit)}
+              >
+                Siguiente
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

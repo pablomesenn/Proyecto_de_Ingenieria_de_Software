@@ -1,4 +1,5 @@
 import { apiPost } from "./http";
+import { apiGet } from "@/api/http";
 
 export interface LoginResponse {
   access_token: string;

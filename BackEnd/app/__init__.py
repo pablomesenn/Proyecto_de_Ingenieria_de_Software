@@ -94,14 +94,16 @@ def init_extensions(app):
     Inicializa las extensiones de Flask
     """
     # CORS
-    CORS(app,
-         origins=app.config['CORS_ORIGINS'],
-         supports_credentials=app.config['CORS_SUPPORTS_CREDENTIALS'],
-         resources={r"/api/*": {"origins": "http://localhost:8080"}},
-         allow_headers=["Content-Type", "Authorization"],
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}},
+        supports_credentials=app.config["CORS_SUPPORTS_CREDENTIALS"],
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    )
 
-    def handle_preflight():
+    @app.before_request
+    def _cors_preflight():
         if request.method == "OPTIONS":
             return ("", 204)
     # JWT

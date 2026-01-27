@@ -38,6 +38,26 @@ export async function getInventoryByVariant(
   };
 }
 
+
+export type InventoryMovement = {
+  _id: string;
+  variant_id: string;
+  movement_type: string;
+  quantity: number;
+  reason?: string;
+  creado_en: string;
+
+  stock_before?: number;
+  stock_after?: number;
+
+  retained_before?: number;
+  retained_after?: number;
+
+  product_name?: string;
+  variant_name?: string;
+  actor_name?: string;
+};
+
 // Helper to check if variant has available stock
 export function hasAvailableStock(inventory: VariantInventory): boolean {
   return inventory.disponible && inventory.stock_disponible > 0;
@@ -76,3 +96,19 @@ export function getStockStatusColor(inventory: VariantInventory): string {
 
   return "text-success";
 }
+
+
+export async function fetchInventoryMovements(params?: {
+    skip?: number;
+    limit?: number;
+    movement_type?: string;
+    variant_id?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params?.skip != null) qs.set("skip", String(params.skip));
+    if (params?.limit != null) qs.set("limit", String(params.limit));
+    if (params?.movement_type) qs.set("movement_type", params.movement_type);
+    if (params?.variant_id) qs.set("variant_id", params.variant_id);
+
+    return apiGet<{ movements: InventoryMovement[] }>(`/api/inventory/movements?${qs.toString()}`);
+  }

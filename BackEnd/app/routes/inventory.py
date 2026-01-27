@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from app.repositories.inventory_repository import InventoryRepository
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_schema import (
     InventoryQuerySchema,
@@ -268,37 +269,32 @@ def release_stock(variant_id):
         return jsonify({'error': 'Error interno del servidor'}), 500
 
 
-@inventory_bp.route('/movements', methods=['GET'])
-@jwt_required()
-@require_role(UserRole.ADMIN)
-def get_movements():
-    """
-    Obtiene el historial de movimientos de inventario (ADMIN)
-    Query params: variant_id, movement_type, skip, limit
-    """
-    try:
-        # Validar parámetros
-        schema = InventoryMovementQuerySchema()
-        params = schema.load(request.args)
+@inventory_bp.route("/movements", methods=["GET"])
+def movements():
+    skip = int(request.args.get("skip", 0))
+    limit = int(request.args.get("limit", 50))
+    variant_id = request.args.get("variant_id")
+    movement_type = request.args.get("movement_type")
 
-        # Obtener movimientos
-        movements = inventory_service.get_inventory_movements(
-            variant_id=params.get('variant_id'),
-            movement_type=params.get('movement_type'),
-            skip=params.get('skip', 0),
-            limit=params.get('limit', 50)
-        )
+    filters = {}
+    if variant_id:
+        filters["variant_id"] = variant_id
+    if movement_type:
+        filters["movement_type"] = movement_type
 
-        return jsonify({
-            'movements': movements,
-            'count': len(movements)
-        }), 200
+    repo = InventoryRepository()
+    data = repo.get_movements_detailed(skip=skip, limit=limit, filters=filters)
 
-    except ValidationError as e:
-        return jsonify({'error': 'Parámetros inválidos', 'details': e.messages}), 400
-    except Exception as e:
-        logger.error(f"Error obteniendo movimientos: {str(e)}")
-        return jsonify({'error': 'Error interno del servidor'}), 500
+    # Convertir ObjectId a string
+    for m in data:
+        m["_id"] = str(m["_id"])
+        m["variant_id"] = str(m["variant_id"])
+        if m.get("actor_id"):
+            m["actor_id"] = str(m["actor_id"])
+
+    return jsonify({"movements": data}), 200
+
+
 
 
 @inventory_bp.route('/low-stock', methods=['GET'])
