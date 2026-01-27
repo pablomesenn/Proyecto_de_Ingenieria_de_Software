@@ -189,24 +189,39 @@ export function getStockStatusMessage(item: WishlistItem): string {
 }
 
 // Helper to validate wishlist before conversion to reservation
-export function validateWishlistForReservation(items: WishlistItem[]): {
+export function validateWishlistForReservation(items: any[]): {
   valid: boolean;
   errors: string[];
-  validItems: WishlistItem[];
+  validItems: any[];
 } {
   const errors: string[] = [];
-  const validItems: WishlistItem[] = [];
+  const validItems: any[] = [];
 
   for (const item of items) {
-    const productName = item.product.name || item.product.nombre || "Producto";
-    const variantSize = item.variant.size || item.variant.tamano_pieza || "";
+    // Handle both raw backend format and mapped UI format
+    const productName =
+      item.product?.name ||
+      item.product?.nombre ||
+      item.name || // mapped format
+      "Producto";
 
-    if (!item.available) {
+    const variantSize =
+      item.variant?.size ||
+      item.variant?.tamano_pieza ||
+      item.variant?.size || // mapped format
+      "";
+
+    const isAvailable =
+      item.available !== undefined ? item.available : item.variant?.available;
+
+    const stock =
+      item.stock !== undefined ? item.stock : item.variant?.stock || 0;
+
+    if (!isAvailable) {
       errors.push(`${productName} (${variantSize}) no está disponible`);
       continue;
     }
 
-    const stock = item.stock || 0;
     if (stock < item.quantity) {
       errors.push(
         `${productName} (${variantSize}): stock insuficiente. Disponible: ${stock}, solicitado: ${item.quantity}`,
