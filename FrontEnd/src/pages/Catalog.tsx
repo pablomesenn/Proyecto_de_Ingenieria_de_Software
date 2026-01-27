@@ -395,7 +395,7 @@ const Catalog = () => {
                           alt={product.name}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
-                        <div className="absolute top-3 left-3">
+                        {/*<div className="absolute top-3 left-3">
                           <Badge
                             variant={
                               product.available ? "available" : "unavailable"
@@ -403,7 +403,7 @@ const Catalog = () => {
                           >
                             {product.available ? "Disponible" : "Agotado"}
                           </Badge>
-                        </div>
+                        </div>*/}
                         <button
                           className="absolute top-3 right-3 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-background"
                           onClick={(e) => {

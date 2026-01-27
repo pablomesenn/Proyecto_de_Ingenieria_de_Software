@@ -6,12 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useWishlist } from "@/contexts/WishlistContext";
 import WishlistItem from "@/components/wishlist/WishlistItem";
 import CreateReservationDialog from "@/components/wishlist/CreateReservationDialog";
-import { 
-  Heart, 
-  ShoppingBag, 
-  Trash2, 
+import {
+  Heart,
+  ShoppingBag,
+  Trash2,
   ArrowRight,
-  Package
+  Package,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -24,18 +26,56 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Wishlist = () => {
-  const { items, clearWishlist, getTotalItems } = useWishlist();
+  const {
+    items,
+    isLoading,
+    error,
+    clearWishlist,
+    getTotalItems,
+    getAvailableItems,
+    getUnavailableItems,
+  } = useWishlist();
+
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
 
-  const availableItems = items.filter((item) => item.variant.available);
-  const unavailableItems = items.filter((item) => !item.variant.available);
-  const totalItems = getTotalItems();
-  const availableUnits = availableItems.reduce(
-    (sum, item) => sum + item.quantity,
-    0
-  );
+  const availableItems = getAvailableItems();
+  const unavailableItems = getUnavailableItems();
+  const totalUnits = getTotalItems();
+
+  // Calculate total value
+  const totalValue = items.reduce((sum, item) => {
+    const price = item.variant.price || 0;
+    return sum + price * item.quantity;
+  }, 0);
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="container py-16 flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">
+            Cargando tu lista de interés...
+          </p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <div className="container py-16">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -44,13 +84,13 @@ const Wishlist = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-display font-bold flex items-center gap-3">
-              <Heart className="h-8 w-8 text-primary" />
+              <Heart className="h-8 w-8 text-primary fill-primary" />
               Mi Lista de Interés
             </h1>
             <p className="text-muted-foreground mt-1">
               {items.length === 0
                 ? "Tu lista está vacía"
-                : `${items.length} producto(s) · ${totalItems} unidades totales`}
+                : `${items.length} producto(s) · ${totalUnits} unidades`}
             </p>
           </div>
 
@@ -65,10 +105,12 @@ const Wishlist = () => {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Vaciar lista de interés?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      ¿Vaciar lista de interés?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Esta acción eliminará todos los productos de tu lista. Esta
-                      acción no se puede deshacer.
+                      Esta acción eliminará todos los productos de tu lista.
+                      Esta acción no se puede deshacer.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -117,8 +159,21 @@ const Wishlist = () => {
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Wishlist Items */}
             <div className="lg:col-span-2 space-y-4">
+              {/* Availability Alert */}
+              {unavailableItems.length > 0 && (
+                <Alert variant="warning">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {unavailableItems.length} producto(s) no tienen stock
+                    suficiente o no están disponibles. Estos no podrán incluirse
+                    en la reserva.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Items List */}
               {items.map((item) => (
-                <WishlistItem key={item.id} item={item} />
+                <WishlistItem key={item.itemId} item={item} />
               ))}
             </div>
 
@@ -142,22 +197,25 @@ const Wishlist = () => {
                       <span className="text-muted-foreground">
                         Unidades totales
                       </span>
-                      <span className="font-medium">{totalItems}</span>
+                      <span className="font-medium">{totalUnits}</span>
                     </div>
+
                     <div className="h-px bg-border" />
+
                     <div className="flex justify-between text-sm">
                       <span className="text-success flex items-center gap-1">
                         <Package className="h-4 w-4" />
                         Disponibles
                       </span>
                       <span className="font-medium text-success">
-                        {availableItems.length} ({availableUnits} unidades)
+                        {availableItems.length}
                       </span>
                     </div>
+
                     {unavailableItems.length > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-destructive flex items-center gap-1">
-                          <Package className="h-4 w-4" />
+                          <AlertCircle className="h-4 w-4" />
                           No disponibles
                         </span>
                         <span className="font-medium text-destructive">
@@ -171,8 +229,9 @@ const Wishlist = () => {
                   {unavailableItems.length > 0 && (
                     <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
                       <p className="text-xs text-warning-foreground">
-                        Algunos productos no están disponibles. Al crear una
-                        reserva, solo se incluirán los productos disponibles.
+                        Algunos productos no están disponibles o no tienen stock
+                        suficiente. Al crear una reserva, solo se incluirán los
+                        productos disponibles.
                       </p>
                     </div>
                   )}
@@ -185,7 +244,8 @@ const Wishlist = () => {
                     disabled={availableItems.length === 0}
                   >
                     <ShoppingBag className="h-5 w-5 mr-2" />
-                    Crear Reserva
+                    Crear Reserva{" "}
+                    {availableItems.length > 0 && `(${availableItems.length})`}
                   </Button>
 
                   <p className="text-xs text-muted-foreground text-center">

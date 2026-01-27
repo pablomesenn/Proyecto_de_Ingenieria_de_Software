@@ -1,217 +1,209 @@
-import React, {
+import {
   createContext,
   useContext,
   useState,
   useEffect,
   ReactNode,
 } from "react";
+import {
+  getWishlist,
+  addItemToWishlist,
+  updateWishlistItem,
+  removeWishlistItem,
+  clearWishlist as clearWishlistAPI,
+  mapWishlistItemToUI,
+  type Wishlist,
+} from "@/api/wishlist";
 import { useAuth } from "./AuthContext";
-import * as wishlistApi from "@/api/wishlist";
 
-export interface WishlistItemVariant {
+interface WishlistItem {
   id: string;
-  size: string;
-  available: boolean;
-  stock: number;
-}
-
-export interface WishlistItem {
-  id: string;
+  itemId: string;
   productId: string;
   variantId: string;
   name: string;
   category: string;
   image: string;
-  variant: WishlistItemVariant;
+  variant: {
+    id: string;
+    size: string;
+    price?: number;
+    available: boolean;
+    stock: number;
+  };
   quantity: number;
+  available: boolean;
+  stock: number;
   addedAt: string;
+  updatedAt?: string;
 }
 
 interface WishlistContextType {
   items: WishlistItem[];
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
   addItem: (variantId: string, quantity?: number) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clearWishlist: () => Promise<void>;
-  getTotalItems: () => number;
   refreshWishlist: () => Promise<void>;
+  getTotalItems: () => number;
+  getTotalUnits: () => number;
+  getAvailableItems: () => WishlistItem[];
+  getUnavailableItems: () => WishlistItem[];
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(
   undefined,
 );
 
-export function WishlistProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<WishlistItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export const useWishlist = () => {
+  const context = useContext(WishlistContext);
+  if (!context) {
+    throw new Error("useWishlist must be used within a WishlistProvider");
+  }
+  return context;
+};
+
+interface WishlistProviderProps {
+  children: ReactNode;
+}
+
+export const WishlistProvider = ({ children }: WishlistProviderProps) => {
   const { user } = useAuth();
+  const [items, setItems] = useState<WishlistItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load wishlist when user logs in
   useEffect(() => {
-    if (user) {
+    if (user && user.role === "customer") {
       refreshWishlist();
     } else {
-      // Clear wishlist when user logs out
       setItems([]);
-      setError(null);
     }
   }, [user]);
 
   const refreshWishlist = async () => {
-    if (!user) {
+    if (!user || user.role !== "customer") {
       setItems([]);
       return;
     }
 
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
 
     try {
-      const wishlist = await wishlistApi.getWishlist();
-      const mappedItems = wishlist.items.map(wishlistApi.mapWishlistItemToUI);
-      setItems(mappedItems);
-    } catch (err) {
-      console.error("Error loading wishlist:", err);
+      const wishlist = await getWishlist();
 
-      // Don't show error for 401 (user not logged in)
-      if (
-        err instanceof Error &&
-        !err.message.includes("401") &&
-        !err.message.includes("Token")
-      ) {
-        setError(err.message || "Error cargando lista de interés");
-      }
+      // Map items to UI format
+      const mappedItems = wishlist.items.map(mapWishlistItemToUI);
+      setItems(mappedItems);
+    } catch (err: any) {
+      console.error("Error loading wishlist:", err);
+      setError(err.message || "Error al cargar la lista de interés");
       setItems([]);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const addItem = async (variantId: string, quantity: number = 1) => {
-    if (!user) {
-      throw new Error("Debes iniciar sesión para agregar items a tu lista");
+    if (!user || user.role !== "customer") {
+      throw new Error("Solo clientes pueden agregar items a la wishlist");
     }
 
-    setLoading(true);
-    setError(null);
-
     try {
-      const response = await wishlistApi.addItemToWishlist({
-        variant_id: variantId,
-        quantity,
-      });
-      const mappedItems = response.wishlist.items.map(
-        wishlistApi.mapWishlistItemToUI,
-      );
-      setItems(mappedItems);
-    } catch (err) {
+      await addItemToWishlist({ variant_id: variantId, quantity });
+      await refreshWishlist();
+    } catch (err: any) {
       console.error("Error adding item to wishlist:", err);
-      setError(err instanceof Error ? err.message : "Error agregando item");
-      throw err;
-    } finally {
-      setLoading(false);
+      throw new Error(err.message || "Error al agregar producto a la lista");
     }
   };
 
   const updateQuantity = async (itemId: string, quantity: number) => {
-    if (!user) return;
-
-    if (quantity < 1) {
-      await removeItem(itemId);
-      return;
+    if (!user || user.role !== "customer") {
+      throw new Error("No autorizado");
     }
 
-    setLoading(true);
-    setError(null);
-
     try {
-      const response = await wishlistApi.updateWishlistItem(itemId, {
-        quantity,
-      });
-      const mappedItems = response.wishlist.items.map(
-        wishlistApi.mapWishlistItemToUI,
-      );
-      setItems(mappedItems);
-    } catch (err) {
-      console.error("Error updating wishlist item:", err);
-      setError(
-        err instanceof Error ? err.message : "Error actualizando cantidad",
-      );
-      throw err;
-    } finally {
-      setLoading(false);
+      await updateWishlistItem(itemId, { quantity });
+      await refreshWishlist();
+    } catch (err: any) {
+      console.error("Error updating quantity:", err);
+      throw new Error(err.message || "Error al actualizar cantidad");
     }
   };
 
   const removeItem = async (itemId: string) => {
-    if (!user) return;
-
-    setLoading(true);
-    setError(null);
+    if (!user || user.role !== "customer") {
+      throw new Error("No autorizado");
+    }
 
     try {
-      const response = await wishlistApi.removeWishlistItem(itemId);
-      const mappedItems = response.wishlist.items.map(
-        wishlistApi.mapWishlistItemToUI,
-      );
-      setItems(mappedItems);
-    } catch (err) {
-      console.error("Error removing wishlist item:", err);
-      setError(err instanceof Error ? err.message : "Error eliminando item");
-      throw err;
-    } finally {
-      setLoading(false);
+      await removeWishlistItem(itemId);
+      await refreshWishlist();
+    } catch (err: any) {
+      console.error("Error removing item:", err);
+      throw new Error(err.message || "Error al eliminar producto");
     }
   };
 
   const clearWishlist = async () => {
-    if (!user) return;
-
-    setLoading(true);
-    setError(null);
+    if (!user || user.role !== "customer") {
+      throw new Error("No autorizado");
+    }
 
     try {
-      await wishlistApi.clearWishlist();
+      await clearWishlistAPI();
       setItems([]);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error clearing wishlist:", err);
-      setError(err instanceof Error ? err.message : "Error limpiando lista");
-      throw err;
-    } finally {
-      setLoading(false);
+      throw new Error(err.message || "Error al limpiar la lista");
     }
   };
 
   const getTotalItems = () => {
-    return items.reduce((total, item) => total + item.quantity, 0);
+    return items.reduce((sum, item) => sum + item.quantity, 0);
+  };
+
+  const getTotalUnits = () => {
+    return items.length;
+  };
+
+  const getAvailableItems = () => {
+    return items.filter(
+      (item) => item.available && item.stock >= item.quantity,
+    );
+  };
+
+  const getUnavailableItems = () => {
+    return items.filter(
+      (item) => !item.available || item.stock < item.quantity,
+    );
+  };
+
+  const value: WishlistContextType = {
+    items,
+    isLoading,
+    error,
+    addItem,
+    updateQuantity,
+    removeItem,
+    clearWishlist,
+    refreshWishlist,
+    getTotalItems,
+    getTotalUnits,
+    getAvailableItems,
+    getUnavailableItems,
   };
 
   return (
-    <WishlistContext.Provider
-      value={{
-        items,
-        loading,
-        error,
-        addItem,
-        updateQuantity,
-        removeItem,
-        clearWishlist,
-        getTotalItems,
-        refreshWishlist,
-      }}
-    >
+    <WishlistContext.Provider value={value}>
       {children}
     </WishlistContext.Provider>
   );
-}
+};
 
-export function useWishlist() {
-  const context = useContext(WishlistContext);
-  if (context === undefined) {
-    throw new Error("useWishlist must be used within a WishlistProvider");
-  }
-  return context;
-}
+export default WishlistContext;

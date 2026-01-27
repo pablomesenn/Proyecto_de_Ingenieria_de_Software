@@ -130,7 +130,7 @@ class WishlistRepository:
     def get_items_with_details(self, user_id):
         """
         FIXED: Returns data structure that matches frontend expectations
-        Returns items with nested product and variant objects
+        Returns items with nested product and variant objects with proper stock info
         """
         wishlist = self.find_by_user_id(user_id)
 
@@ -176,30 +176,36 @@ class WishlistRepository:
             {'$project': {
                 '_id': '$items.item_id',
                 'item_id': '$items.item_id',
+                'variant_id': '$items.variant_id',
                 'quantity': '$items.quantity',
                 'added_at': '$items.added_at',
                 'updated_at': '$items.updated_at',
 
-                # Nested product object
+                # Nested product object - with both Spanish and English field names
                 'product': {
                     '_id': '$product_details._id',
+                    'name': '$product_details.nombre',
                     'nombre': '$product_details.nombre',
+                    'image_url': '$product_details.imagen_url',
                     'imagen_url': '$product_details.imagen_url',
+                    'category': '$product_details.categoria',
                     'categoria': '$product_details.categoria',
                     'estado': '$product_details.estado',
                     'tags': '$product_details.tags'
                 },
 
-                # Nested variant object
+                # Nested variant object - with both Spanish and English field names
                 'variant': {
                     '_id': '$variant_details._id',
+                    'size': '$variant_details.tamano_pieza',
                     'tamano_pieza': '$variant_details.tamano_pieza',
                     'unidad': '$variant_details.unidad',
                     'precio': '$variant_details.precio',
+                    'price': '$variant_details.precio',
                     'product_id': '$variant_details.product_id'
                 },
 
-                # Inventory info
+                # Inventory info - with BOTH field name conventions for compatibility
                 'inventory': {
                     'stock_total': {'$ifNull': ['$inventory_details.stock_total', 0]},
                     'stock_retenido': {'$ifNull': ['$inventory_details.stock_retenido', 0]},
@@ -208,7 +214,32 @@ class WishlistRepository:
                             {'$ifNull': ['$inventory_details.stock_total', 0]},
                             {'$ifNull': ['$inventory_details.stock_retenido', 0]}
                         ]
+                    },
+                    'stock_disponible': {
+                        '$subtract': [
+                            {'$ifNull': ['$inventory_details.stock_total', 0]},
+                            {'$ifNull': ['$inventory_details.stock_retenido', 0]}
+                        ]
                     }
+                },
+
+                # Convenience fields for frontend at root level
+                'available': {
+                    '$gt': [
+                        {
+                            '$subtract': [
+                                {'$ifNull': ['$inventory_details.stock_total', 0]},
+                                {'$ifNull': ['$inventory_details.stock_retenido', 0]}
+                            ]
+                        },
+                        0
+                    ]
+                },
+                'stock': {
+                    '$subtract': [
+                        {'$ifNull': ['$inventory_details.stock_total', 0]},
+                        {'$ifNull': ['$inventory_details.stock_retenido', 0]}
+                    ]
                 }
             }}
         ]
@@ -219,6 +250,7 @@ class WishlistRepository:
         for item in result:
             item['_id'] = str(item['_id'])
             item['item_id'] = str(item['item_id'])
+            item['variant_id'] = str(item['variant_id'])
 
             if 'product' in item and item['product']:
                 item['product']['_id'] = str(item['product']['_id'])
@@ -226,5 +258,8 @@ class WishlistRepository:
             if 'variant' in item and item['variant']:
                 item['variant']['_id'] = str(item['variant']['_id'])
                 item['variant']['product_id'] = str(item['variant']['product_id'])
+                # Propagate availability and stock to variant level for frontend
+                item['variant']['available'] = item.get('available', False)
+                item['variant']['stock'] = item.get('stock', 0)
 
         return result
