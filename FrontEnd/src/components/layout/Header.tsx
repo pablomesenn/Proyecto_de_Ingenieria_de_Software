@@ -47,7 +47,7 @@ const Header = () => {
           </div>
           <div className="hidden sm:block">
             <span className="font-display font-semibold text-lg text-foreground">Pisos Kermy</span>
-            <span className="text-xs text-muted-foreground block -mt-1">JacÃ³ S.A.</span>
+            <span className="text-xs text-muted-foreground block -mt-1">Jacó S.A.</span>
           </div>
         </Link>
 
@@ -87,7 +87,7 @@ const Header = () => {
           <Button variant="outline" asChild>
             <Link to="/login">
               <User className="h-4 w-4 mr-2" />
-              Iniciar SesiÃ³n
+              Iniciar Sesion
             </Link>
           </Button>
         </div>
