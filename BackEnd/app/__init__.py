@@ -1,7 +1,7 @@
 """
 Inicialización de la aplicación Flask
 """
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
@@ -101,7 +101,9 @@ def init_extensions(app):
          allow_headers=["Content-Type", "Authorization"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            return ("", 204)
     # JWT
     jwt.init_app(app)
 

@@ -23,6 +23,7 @@ setup_jwt_callbacks(jwt)
 from app.routes.auth import auth_bp
 from app.routes.users import users_bp
 from app.routes.reservations import reservations_bp
+from app.routes.catalog_routes import catalog_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(users_bp, url_prefix='/api/users')
@@ -30,6 +31,7 @@ app.register_blueprint(reservations_bp, url_prefix='/api/reservations')
 app.register_blueprint(products_bp, url_prefix='/api/products')
 app.register_blueprint(wishlist_bp, url_prefix='/api/wishlist')
 app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
+app.register_blueprint(catalog_bp, url_prefix="/api/catalog")
 
 # Inicializar jobs programados
 scheduler = init_scheduler()

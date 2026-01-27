@@ -132,10 +132,69 @@ class ProductRepository:
         return self.products_collection.count_documents(query)
 
     def get_categories(self):
-        return self.products_collection.distinct('categoria')
+        pipeline = [
+            {
+                "$project": {
+                    "cat": {
+                        "$ifNull": ["$categoria", {"$ifNull": ["$category", "$categoryName"]}]
+                    }
+                }
+            },
+            {"$match": {"cat": {"$ne": None, "$ne": ""}}},
+            {"$group": {"_id": "$cat"}},
+            {"$sort": {"_id": 1}},
+        ]
+        return [d["_id"] for d in self.products_collection.aggregate(pipeline)]
+
 
     def get_tags(self):
-        return self.products_collection.distinct('tags')
+        pipeline = [
+            {
+                "$project": {
+                    "t": {"$ifNull": ["$tags", "$etiquetas"]}  # si no existe 'etiquetas', no estorba
+                }
+            },
+            {"$unwind": {"path": "$t", "preserveNullAndEmptyArrays": False}},
+            {"$match": {"t": {"$ne": None, "$ne": ""}}},
+            {"$group": {"_id": "$t"}},
+            {"$sort": {"_id": 1}},
+        ]
+        return [d["_id"] for d in self.products_collection.aggregate(pipeline)]
+
+
+    def count_by_category_value(self, slug: str = None, name: str = None, only_active: bool = False) -> int:
+        values = [v for v in [slug, name] if v]
+        if not values:
+            return 0
+
+        query = {
+            "$or": [
+                {"categoria": {"$in": values}},
+                {"category": {"$in": values}},
+                {"categoryName": {"$in": values}},
+            ]
+        }
+        if only_active:
+            query["estado"] = "activo"
+
+        return self.products_collection.count_documents(query)
+
+
+    def count_by_tag_value(self, slug: str = None, name: str = None, only_active: bool = False) -> int:
+        values = [v for v in [slug, name] if v]
+        if not values:
+            return 0
+
+        query = {
+            "$or": [
+                {"tags": {"$in": values}},
+                {"etiquetas": {"$in": values}},
+            ]
+        }
+        if only_active:
+            query["estado"] = "activo"
+
+        return self.products_collection.count_documents(query)
 
     def _invalidate_product_cache(self, product_id):
         """Invalida el caché de un producto específico"""
