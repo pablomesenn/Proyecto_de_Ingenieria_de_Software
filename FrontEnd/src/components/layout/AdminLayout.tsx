@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,9 @@ import {
   Home,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import notificationService, {
+  type Notification,
+} from "@/api/notifications";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -38,7 +41,7 @@ interface AdminLayoutProps {
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Productos", href: "/admin/products", icon: Package },
-  { name: "Categorías y Etiquetas", href: "/admin/categories", icon: Tags },
+  { name: "CategorÃ­as y Etiquetas", href: "/admin/categories", icon: Tags },
   { name: "Inventario", href: "/admin/inventory", icon: Warehouse },
   { name: "Reservas", href: "/admin/reservations", icon: CalendarClock },
   { name: "Usuarios", href: "/admin/users", icon: Users },
@@ -48,9 +51,34 @@ const navigation = [
 const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  // Cargar notificaciones al montar el componente y cada 30 segundos
+  useEffect(() => {
+    loadNotifications();
+    
+    // Polling cada 30 segundos para nuevas notificaciones
+    const interval = setInterval(() => {
+      loadNotifications();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadNotifications = async () => {
+    try {
+      const data = await notificationService.getNotifications({ limit: 20 });
+      setNotifications(data.notifications);
+      setUnreadCount(data.unread_count);
+    } catch (error) {
+      console.error("Error cargando notificaciones:", error);
+    }
+  };
 
   const isActive = (path: string) => {
     if (path === "/admin") {
@@ -62,6 +90,47 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      await notificationService.markAsRead(id);
+      // Actualizar estado local
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Error marcando como leída:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      setLoadingNotifications(true);
+      await notificationService.markAllAsRead();
+      // Recargar notificaciones
+      await loadNotifications();
+    } catch (error) {
+      console.error("Error marcando todas como leídas:", error);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  const getTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Hace un momento";
+    if (diffMins < 60) return `Hace ${diffMins} minuto${diffMins > 1 ? "s" : ""}`;
+    if (diffHours < 24) return `Hace ${diffHours} hora${diffHours > 1 ? "s" : ""}`;
+    if (diffDays < 7) return `Hace ${diffDays} día${diffDays > 1 ? "s" : ""}`;
+    return date.toLocaleDateString("es-ES");
   };
 
   return (
@@ -155,7 +224,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-900 hover:bg-sidebar-accent hover:text-white transition-colors"
           >
             <Settings className="h-5 w-5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>Configuración</span>}
+            {!sidebarCollapsed && <span>ConfiguraciÃ³n</span>}
           </Link>
         </div>
       </aside>
@@ -181,12 +250,75 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           <div className="flex-1" />
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]">
-              3
-            </Badge>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]">
+                    {unreadCount}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Notificaciones</span>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                    onClick={markAllAsRead}
+                    disabled={loadingNotifications}
+                  >
+                    {loadingNotifications
+                      ? "Marcando..."
+                      : "Marcar todas como leídas"}
+                  </Button>
+                )}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="max-h-[400px] overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    No hay notificaciones
+                  </div>
+                ) : (
+                  notifications.map((notification) => (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={cn(
+                        "flex flex-col items-start gap-1 p-3 cursor-pointer",
+                        !notification.read && "bg-primary/5",
+                      )}
+                      onClick={() => {
+                        markAsRead(notification.id);
+                        if (notification.action_url) {
+                          navigate(notification.action_url);
+                        }
+                      }}
+                    >
+                      <div className="flex items-start justify-between w-full gap-2">
+                        <span className="font-medium text-sm">
+                          {notification.title}
+                        </span>
+                        {!notification.read && (
+                          <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {notification.message}
+                      </p>
+                      <span className="text-xs text-muted-foreground">
+                        {getTimeAgo(notification.created_at)}
+                      </span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* User menu */}
           <DropdownMenu>
@@ -220,7 +352,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                   className="flex items-center gap-2 cursor-pointer"
                 >
                   <Settings className="h-4 w-4" />
-                  Configuración
+                  ConfiguraciÃ³n
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -229,7 +361,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 className="text-destructive cursor-pointer"
               >
                 <LogOut className="h-4 w-4 mr-2" />
-                Cerrar Sesión
+                Cerrar SesiÃ³n
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

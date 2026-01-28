@@ -1,252 +1,158 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from app.config.config import Config
 from app.repositories.notification_repository import NotificationRepository
-from app.models.notification import EmailNotification
+from app.models.in_app_notification import InAppNotification
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class NotificationService:
-    """Servicio para envio de notificaciones por email"""
+    """Servicio para gestionar notificaciones"""
     
     def __init__(self):
-        self.notification_repo = NotificationRepository()
-        self.smtp_username = Config.SMTP_USERNAME
-        self.smtp_password = Config.SMTP_PASSWORD
-        self.smtp_server = Config.SMTP_SERVER
-        self.smtp_port = Config.SMTP_PORT
-        
-    def send_email(self, to_email, subject, body, html=False):
-        """Envia un email utilizando SMTP"""
-        try:
-            msg = MIMEMultipart('alternative')
-            msg['From'] = self.smtp_username
-            msg['To'] = to_email
-            msg['Subject'] = subject
-            
-            if html:
-                msg.attach(MIMEText(body, 'html'))
-            else:
-                msg.attach(MIMEText(body, 'plain'))
-            
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_username, self.smtp_password)
-                server.send_message(msg)
-                
-            return True
-        except Exception as e:
-            logger.error(f"Error enviando email a {to_email}: {str(e)}")
-            return False
+        self.repository = NotificationRepository()
     
-    def queue_notification(self, user_id, email_to, notification_type, subject, body, related_entity_id=None):
-        """Encola una notificacion para envio posterior"""
+    def get_user_notifications(self, user_id, unread_only=False, limit=50, skip=0):
+        """Obtiene notificaciones de un usuario"""
+        result = self.repository.get_user_notifications(user_id, unread_only, limit, skip)
         
-        # Evitar duplicados para ciertos tipos
-        if related_entity_id:
-            if self.notification_repo.check_if_already_notified(related_entity_id, notification_type):
-                logger.info(f"Notificacion {notification_type} ya enviada para {related_entity_id}")
-                return None
+        # Convertir notificaciones a formato JSON serializable
+        notifications_dict = []
+        for notification in result['notifications']:
+            notif_dict = {
+                'id': str(notification._id),
+                'title': notification.title,
+                'message': notification.message,
+                'type': notification.notification_type,
+                'priority': notification.priority,
+                'read': notification.read,
+                'read_at': notification.read_at.isoformat() if notification.read_at else None,
+                'created_at': notification.created_at.isoformat() if notification.created_at else None,
+                'action_url': notification.action_url,
+                'related_entity_id': str(notification.related_entity_id) if notification.related_entity_id else None,
+                'related_entity_type': notification.related_entity_type
+            }
+            notifications_dict.append(notif_dict)
         
-        notification = EmailNotification(
-            user_id=user_id,
-            email_to=email_to,
-            notification_type=notification_type,
-            subject=subject,
-            body=body,
-            related_entity_id=related_entity_id
-        )
-        
-        return self.notification_repo.create(notification)
-    
-    def send_queued_notifications(self, max_retries=3):
-        """Procesa notificaciones pendientes"""
-        notifications = self.notification_repo.find_pending()
-        
-        results = {
-            'sent': 0,
-            'failed': 0,
-            'total': len(notifications)
+        return {
+            'notifications': notifications_dict,
+            'unread_count': result['unread_count'],
+            'total': result['total']
         }
-        
-        for notification in notifications:
-            if notification.retry_count >= max_retries:
-                self.notification_repo.mark_as_failed(
-                    notification._id,
-                    f"Maximo de reintentos alcanzado ({max_retries})"
-                )
-                results['failed'] += 1
-                continue
-            
-            success = self.send_email(
-                notification.email_to,
-                notification.subject,
-                notification.body
-            )
-            
-            if success:
-                self.notification_repo.mark_as_sent(notification._id)
-                results['sent'] += 1
-            else:
-                self.notification_repo.increment_retry_count(notification._id)
-                results['failed'] += 1
-                
-        return results
     
-    def send_reservation_created(self, user, reservation):
-        """Envia notificacion de reserva creada"""
-        subject = "Reserva creada - Pisos Kermy"
-        body = f"""
-Hola {user.get('name', 'Cliente')},
-
-Tu reserva ha sido creada exitosamente.
-
-Numero de reserva: {str(reservation._id)}
-Estado: {reservation.state}
-Fecha de vencimiento: {reservation.expires_at.strftime('%Y-%m-%d %H:%M')}
-
-Por favor, coordina con nosotros antes de que venza tu reserva para completar el proceso.
-
-Saludos,
-Equipo Pisos Kermy
-        """
-        
-        return self.queue_notification(
-            user_id=user['_id'],
-            email_to=user['email'],
-            notification_type=EmailNotification.TYPE_RESERVATION_CREATED,
-            subject=subject,
-            body=body,
-            related_entity_id=reservation._id
-        )
+    def mark_as_read(self, notification_id, user_id):
+        """Marca una notificación como leída"""
+        return self.repository.mark_as_read(notification_id, user_id)
     
-    def send_reservation_approved(self, user, reservation):
-        """Envia notificacion de reserva aprobada"""
-        subject = "Reserva aprobada - Pisos Kermy"
-        body = f"""
-Hola {user.get('name', 'Cliente')},
-
-Tu reserva ha sido APROBADA.
-
-Numero de reserva: {str(reservation._id)}
-Estado: {reservation.state}
-
-Puedes pasar a retirar tus productos en el horario de atencion.
-
-Saludos,
-Equipo Pisos Kermy
-        """
-        
-        return self.queue_notification(
-            user_id=user['_id'],
-            email_to=user['email'],
-            notification_type=EmailNotification.TYPE_RESERVATION_APPROVED,
-            subject=subject,
-            body=body,
-            related_entity_id=reservation._id
-        )
+    def mark_all_as_read(self, user_id):
+        """Marca todas las notificaciones como leídas"""
+        count = self.repository.mark_all_as_read(user_id)
+        return {'marked_count': count}
     
-    def send_reservation_rejected(self, user, reservation):
-        """Envia notificacion de reserva rechazada"""
-        subject = "Reserva rechazada - Pisos Kermy"
-        body = f"""
-Hola {user.get('name', 'Cliente')},
-
-Lamentablemente tu reserva ha sido RECHAZADA.
-
-Numero de reserva: {str(reservation._id)}
-Razon: {reservation.admin_notes or 'No especificada'}
-
-El inventario reservado ha sido liberado.
-
-Saludos,
-Equipo Pisos Kermy
-        """
-        
-        return self.queue_notification(
-            user_id=user['_id'],
-            email_to=user['email'],
-            notification_type=EmailNotification.TYPE_RESERVATION_REJECTED,
-            subject=subject,
-            body=body,
-            related_entity_id=reservation._id
-        )
+    def delete_notification(self, notification_id, user_id):
+        """Elimina una notificación"""
+        return self.repository.delete_notification(notification_id, user_id)
     
-    def send_reservation_cancelled(self, user, reservation):
-        """Envia notificacion de reserva cancelada"""
-        subject = "Reserva cancelada - Pisos Kermy"
-        body = f"""
-Hola {user.get('name', 'Cliente')},
-
-Tu reserva ha sido CANCELADA.
-
-Numero de reserva: {str(reservation._id)}
-
-El inventario reservado ha sido liberado.
-
-Saludos,
-Equipo Pisos Kermy
-        """
-        
-        return self.queue_notification(
-            user_id=user['_id'],
-            email_to=user['email'],
-            notification_type=EmailNotification.TYPE_RESERVATION_CANCELLED,
-            subject=subject,
-            body=body,
-            related_entity_id=reservation._id
-        )
+    def get_unread_count(self, user_id):
+        """Obtiene el conteo de notificaciones no leídas"""
+        count = self.repository.get_unread_count(user_id)
+        return {'unread_count': count}
     
-    def send_reservation_expired(self, user, reservation):
-        """Envia notificacion de reserva expirada"""
-        subject = "Reserva expirada - Pisos Kermy"
-        body = f"""
-Hola {user.get('name', 'Cliente')},
-
-Tu reserva ha EXPIRADO por vencimiento del tiempo de retencion (24 horas).
-
-Numero de reserva: {str(reservation._id)}
-
-El inventario reservado ha sido liberado. Si aun estas interesado, puedes crear una nueva reserva.
-
-Saludos,
-Equipo Pisos Kermy
-        """
-        
-        return self.queue_notification(
-            user_id=user['_id'],
-            email_to=user['email'],
-            notification_type=EmailNotification.TYPE_RESERVATION_EXPIRED,
-            subject=subject,
-            body=body,
-            related_entity_id=reservation._id
-        )
+    # Métodos para crear notificaciones basadas en eventos
     
-    def send_reservation_expiring_soon(self, user, reservation):
-        """Envia notificacion de reserva por vencer"""
-        subject = "Tu reserva vence hoy - Pisos Kermy"
-        body = f"""
-Hola {user.get('name', 'Cliente')},
-
-Este es un recordatorio de que tu reserva VENCE HOY.
-
-Numero de reserva: {str(reservation._id)}
-Fecha de vencimiento: {reservation.expires_at.strftime('%Y-%m-%d %H:%M')}
-
-Por favor, coordina con nosotros lo antes posible para completar el proceso antes de que expire.
-
-Saludos,
-Equipo Pisos Kermy
-        """
-        
-        return self.queue_notification(
-            user_id=user['_id'],
-            email_to=user['email'],
-            notification_type=EmailNotification.TYPE_RESERVATION_EXPIRING_SOON,
-            subject=subject,
-            body=body,
-            related_entity_id=reservation._id
+    def notify_new_reservation(self, reservation_id, customer_name, customer_email):
+        """Notifica a admins sobre nueva reserva"""
+        notification_data = {
+            'title': 'Nueva reserva pendiente',
+            'message': f'{customer_name} ({customer_email}) ha creado una nueva reserva',
+            'notification_type': InAppNotification.TYPE_NEW_RESERVATION,
+            'priority': InAppNotification.PRIORITY_NORMAL,
+            'related_entity_id': reservation_id,
+            'related_entity_type': 'reservation',
+            'action_url': f'/admin/reservations/{reservation_id}'
+        }
+        return self.repository.create_notification_for_admins(notification_data)
+    
+    def notify_reservation_approved(self, user_id, reservation_id):
+        """Notifica al cliente que su reserva fue aprobada"""
+        notification = InAppNotification(
+            user_id=user_id,
+            title='Reserva aprobada',
+            message='Tu reserva ha sido aprobada por el administrador',
+            notification_type=InAppNotification.TYPE_RESERVATION_APPROVED,
+            priority=InAppNotification.PRIORITY_NORMAL,
+            related_entity_id=reservation_id,
+            related_entity_type='reservation',
+            action_url=f'/reservations/{reservation_id}'
         )
+        return self.repository.create_notification(notification)
+    
+    def notify_reservation_rejected(self, user_id, reservation_id, reason=None):
+        """Notifica al cliente que su reserva fue rechazada"""
+        message = 'Tu reserva ha sido rechazada por el administrador'
+        if reason:
+            message += f'. Motivo: {reason}'
+        
+        notification = InAppNotification(
+            user_id=user_id,
+            title='Reserva rechazada',
+            message=message,
+            notification_type=InAppNotification.TYPE_RESERVATION_REJECTED,
+            priority=InAppNotification.PRIORITY_HIGH,
+            related_entity_id=reservation_id,
+            related_entity_type='reservation',
+            action_url=f'/reservations/{reservation_id}'
+        )
+        return self.repository.create_notification(notification)
+    
+    def notify_reservation_expiring(self, user_id, reservation_id, hours_remaining):
+        """Notifica al cliente que su reserva está por expirar"""
+        notification = InAppNotification(
+            user_id=user_id,
+            title='Reserva por expirar',
+            message=f'Tu reserva expirará en {hours_remaining} horas. Completa el proceso pronto.',
+            notification_type=InAppNotification.TYPE_RESERVATION_EXPIRING,
+            priority=InAppNotification.PRIORITY_HIGH,
+            related_entity_id=reservation_id,
+            related_entity_type='reservation',
+            action_url=f'/reservations/{reservation_id}'
+        )
+        return self.repository.create_notification(notification)
+    
+    def notify_reservation_expired(self, user_id, reservation_id):
+        """Notifica al cliente que su reserva expiró"""
+        notification = InAppNotification(
+            user_id=user_id,
+            title='Reserva expirada',
+            message='Tu reserva ha expirado por falta de confirmación',
+            notification_type=InAppNotification.TYPE_RESERVATION_EXPIRED,
+            priority=InAppNotification.PRIORITY_NORMAL,
+            related_entity_id=reservation_id,
+            related_entity_type='reservation',
+            action_url='/reservations'
+        )
+        return self.repository.create_notification(notification)
+    
+    def notify_low_stock(self, product_name, variant_name, current_stock):
+        """Notifica a admins sobre stock bajo"""
+        notification_data = {
+            'title': 'Stock bajo',
+            'message': f'{product_name} - {variant_name} tiene solo {current_stock} unidades disponibles',
+            'notification_type': InAppNotification.TYPE_LOW_STOCK,
+            'priority': InAppNotification.PRIORITY_HIGH,
+            'related_entity_type': 'inventory',
+            'action_url': '/admin/inventory'
+        }
+        return self.repository.create_notification_for_admins(notification_data)
+    
+    def notify_out_of_stock(self, product_name, variant_name):
+        """Notifica a admins sobre producto agotado"""
+        notification_data = {
+            'title': 'Producto agotado',
+            'message': f'{product_name} - {variant_name} se ha agotado',
+            'notification_type': InAppNotification.TYPE_OUT_OF_STOCK,
+            'priority': InAppNotification.PRIORITY_URGENT,
+            'related_entity_type': 'inventory',
+            'action_url': '/admin/inventory'
+        }
+        return self.repository.create_notification_for_admins(notification_data)

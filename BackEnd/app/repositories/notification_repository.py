@@ -2,21 +2,21 @@
 Notification Repository with proper lazy database loading
 This prevents creating new connections on every instantiation
 """
-from datetime import datetime
-from bson import ObjectId
 from app.config.database import get_db
-from app.models.notification import EmailNotification
+from app.models.in_app_notification import InAppNotification
+from bson import ObjectId
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class NotificationRepository:
-    """Repositorio para operaciones de notificaciones"""
-
+    """Repositorio para gestionar notificaciones in-app"""
+    
     def __init__(self):
         self._db = None
-
+    
     # ============================================================================
     # LAZY LOADING PROPERTIES - Database is only accessed when needed
     # ============================================================================
@@ -26,78 +26,147 @@ class NotificationRepository:
         if self._db is None:
             self._db = get_db()  # This now returns the SHARED database instance
         return self._db
-
+    
     @property
     def collection(self):
-        """Get email notifications collection (lazy loaded)"""
-        return self.db.email_notifications
-
-    # ============================================================================
-    # REPOSITORY METHODS - Now use properties instead of direct access
-    # ============================================================================
-    def create(self, notification):
-        """Crea una nueva notificacion"""
-        result = self.collection.insert_one(notification.to_dict())
-        notification._id = result.inserted_id
-        return notification
-
-    def find_by_id(self, notification_id):
-        """Busca una notificacion por ID"""
-        data = self.collection.find_one({'_id': ObjectId(notification_id)})
-        return EmailNotification.from_dict(data) if data else None
-
-    def find_pending(self, limit=100):
-        """Busca notificaciones pendientes de envio"""
-        query = {'status': EmailNotification.STATUS_PENDING}
-        cursor = self.collection.find(query).limit(limit)
-        return [EmailNotification.from_dict(data) for data in cursor]
-
-    def find_by_related_entity(self, entity_id, notification_type=None):
-        """Busca notificaciones por entidad relacionada"""
-        query = {'related_entity_id': ObjectId(entity_id)}
-        if notification_type:
-            query['notification_type'] = notification_type
-
-        cursor = self.collection.find(query).sort('created_at', -1)
-        return [EmailNotification.from_dict(data) for data in cursor]
-
-    def update_status(self, notification_id, status, error_message=None):
-        """Actualiza el estado de una notificacion"""
-        update_data = {
-            'status': status,
-            'sent_at': datetime.utcnow() if status == EmailNotification.STATUS_SENT else None
-        }
-
-        if error_message:
-            update_data['error_message'] = error_message
-
-        result = self.collection.update_one(
-            {'_id': ObjectId(notification_id)},
-            {'$set': update_data}
-        )
-        return result.modified_count > 0
-
-    def increment_retry_count(self, notification_id):
-        """Incrementa el contador de reintentos"""
-        result = self.collection.update_one(
-            {'_id': ObjectId(notification_id)},
-            {'$inc': {'retry_count': 1}}
-        )
-        return result.modified_count > 0
-
-    def mark_as_sent(self, notification_id):
-        """Marca una notificacion como enviada"""
-        return self.update_status(notification_id, EmailNotification.STATUS_SENT)
-
-    def mark_as_failed(self, notification_id, error_message):
-        """Marca una notificacion como fallida"""
-        return self.update_status(notification_id, EmailNotification.STATUS_FAILED, error_message)
-
-    def check_if_already_notified(self, entity_id, notification_type):
-        """Verifica si ya se envio una notificacion para evitar duplicados"""
-        count = self.collection.count_documents({
-            'related_entity_id': ObjectId(entity_id),
-            'notification_type': notification_type,
-            'status': EmailNotification.STATUS_SENT
-        })
-        return count > 0
+        """Lazy load collection"""
+        return self.db.in_app_notifications
+        
+    def create_notification(self, notification: InAppNotification):
+        """Crea una nueva notificación"""
+        try:
+            result = self.collection.insert_one(notification.to_dict())
+            notification._id = result.inserted_id
+            logger.info(f"Notificación creada: {notification._id}")
+            return notification
+        except Exception as e:
+            logger.error(f"Error creando notificación: {str(e)}")
+            raise
+    
+    def get_by_id(self, notification_id):
+        """Obtiene una notificación por ID"""
+        try:
+            data = self.collection.find_one({'_id': ObjectId(notification_id)})
+            return InAppNotification.from_dict(data) if data else None
+        except Exception as e:
+            logger.error(f"Error obteniendo notificación {notification_id}: {str(e)}")
+            return None
+    
+    def get_user_notifications(self, user_id, unread_only=False, limit=50, skip=0):
+        """
+        Obtiene notificaciones de un usuario
+        Args:
+            user_id: ID del usuario
+            unread_only: Si True, solo notificaciones no leídas
+            limit: Límite de resultados
+            skip: Número de resultados a saltar
+        """
+        try:
+            query = {'user_id': ObjectId(user_id)}
+            if unread_only:
+                query['read'] = False
+            
+            cursor = self.collection.find(query).sort('created_at', -1).skip(skip).limit(limit)
+            notifications = [InAppNotification.from_dict(data) for data in cursor]
+            
+            # Obtener total de no leídas
+            unread_count = self.collection.count_documents({
+                'user_id': ObjectId(user_id),
+                'read': False
+            })
+            
+            return {
+                'notifications': notifications,
+                'unread_count': unread_count,
+                'total': self.collection.count_documents(query)
+            }
+        except Exception as e:
+            logger.error(f"Error obteniendo notificaciones del usuario {user_id}: {str(e)}")
+            return {'notifications': [], 'unread_count': 0, 'total': 0}
+    
+    def mark_as_read(self, notification_id, user_id):
+        """Marca una notificación como leída"""
+        try:
+            result = self.collection.update_one(
+                {'_id': ObjectId(notification_id), 'user_id': ObjectId(user_id)},
+                {
+                    '$set': {
+                        'read': True,
+                        'read_at': datetime.utcnow()
+                    }
+                }
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error marcando notificación {notification_id} como leída: {str(e)}")
+            return False
+    
+    def mark_all_as_read(self, user_id):
+        """Marca todas las notificaciones de un usuario como leídas"""
+        try:
+            result = self.collection.update_many(
+                {'user_id': ObjectId(user_id), 'read': False},
+                {
+                    '$set': {
+                        'read': True,
+                        'read_at': datetime.utcnow()
+                    }
+                }
+            )
+            return result.modified_count
+        except Exception as e:
+            logger.error(f"Error marcando todas las notificaciones como leídas para usuario {user_id}: {str(e)}")
+            return 0
+    
+    def delete_notification(self, notification_id, user_id):
+        """Elimina una notificación"""
+        try:
+            result = self.collection.delete_one({
+                '_id': ObjectId(notification_id),
+                'user_id': ObjectId(user_id)
+            })
+            return result.deleted_count > 0
+        except Exception as e:
+            logger.error(f"Error eliminando notificación {notification_id}: {str(e)}")
+            return False
+    
+    def get_unread_count(self, user_id):
+        """Obtiene el conteo de notificaciones no leídas"""
+        try:
+            return self.collection.count_documents({
+                'user_id': ObjectId(user_id),
+                'read': False
+            })
+        except Exception as e:
+            logger.error(f"Error obteniendo conteo de no leídas para usuario {user_id}: {str(e)}")
+            return 0
+    
+    def create_notification_for_admins(self, notification_data):
+        """Crea notificaciones para todos los administradores"""
+        try:
+            from app.constants.roles import UserRole
+            
+            # Obtener todos los admins directamente
+            users_collection = self.db.users
+            admins = list(users_collection.find({'role': UserRole.ADMIN}))
+            
+            created_count = 0
+            for admin in admins:
+                notification = InAppNotification(
+                    user_id=admin['_id'],
+                    title=notification_data['title'],
+                    message=notification_data['message'],
+                    notification_type=notification_data['notification_type'],
+                    priority=notification_data.get('priority', InAppNotification.PRIORITY_NORMAL),
+                    related_entity_id=notification_data.get('related_entity_id'),
+                    related_entity_type=notification_data.get('related_entity_type'),
+                    action_url=notification_data.get('action_url')
+                )
+                self.create_notification(notification)
+                created_count += 1
+            
+            logger.info(f"Notificación enviada a {created_count} administradores")
+            return created_count
+        except Exception as e:
+            logger.error(f"Error creando notificaciones para admins: {str(e)}")
+            return 0
