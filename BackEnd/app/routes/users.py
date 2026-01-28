@@ -5,7 +5,8 @@ from app.schemas.user_schema import (
     UpdateProfileSchema,
     CreateUserSchema,
     UpdateUserSchema,
-    UserListQuerySchema
+    UserListQuerySchema,
+    ChangePasswordSchema
 )
 from marshmallow import ValidationError
 from app.constants.roles import UserRole
@@ -83,6 +84,50 @@ def update_profile():
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error actualizando perfil: {str(e)}")
+        return jsonify({'error': 'Error interno del servidor'}), 500
+
+
+@users_bp.route('/change-password', methods=['POST', 'OPTIONS'])
+@jwt_required(optional=True)
+def change_password():
+    """
+    Cambia la contraseña del usuario actual
+    Requiere: contraseña actual, nueva contraseña y confirmación
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    # Verificar autenticación para POST
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({'error': 'Token requerido'}), 401
+    
+    try:
+        # Validar datos
+        schema = ChangePasswordSchema()
+        data = schema.load(request.get_json())
+        
+        # Validar que las contraseñas coincidan
+        if data['new_password'] != data['confirm_password']:
+            return jsonify({'error': 'Las contraseñas no coinciden'}), 400
+        
+        # Cambiar contraseña
+        user_service.change_password(
+            user_id=user_id,
+            current_password=data['current_password'],
+            new_password=data['new_password']
+        )
+        
+        return jsonify({
+            'message': 'Contraseña actualizada exitosamente'
+        }), 200
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Datos inválidos', 'details': e.messages}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error cambiando contraseña: {str(e)}")
         return jsonify({'error': 'Error interno del servidor'}), 500
 
 

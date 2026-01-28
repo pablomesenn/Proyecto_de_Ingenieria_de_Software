@@ -159,3 +159,15 @@ export async function getUserById(userId: string): Promise<UiProfile> {
     role: data.role === "ADMIN" ? "admin" : "customer",
   };
 }
+
+// Cambiar contraseña
+export async function changePassword(passwordData: {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}): Promise<{ message: string }> {
+  return await apiPost<{ message: string }>(
+    "/api/users/change-password",
+    passwordData
+  );
+}

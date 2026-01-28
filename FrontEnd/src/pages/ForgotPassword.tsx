@@ -1,20 +1,41 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
+import { forgotPassword } from "@/api/auth";
 
 const ForgotPassword = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement password recovery logic
-    console.log("Password recovery for:", email);
-    setSubmitted(true);
+    
+    if (!email) {
+      toast.error("Por favor ingresa tu correo electrónico");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await forgotPassword(email);
+      
+      setSubmitted(true);
+      toast.success("Contraseña temporal generada exitosamente");
+      
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || "Error al procesar la solicitud";
+      toast.error(errorMessage);
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (submitted) {
@@ -26,19 +47,19 @@ const ForgotPassword = () => {
               <div className="mx-auto h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mb-4">
                 <CheckCircle className="h-8 w-8 text-success" />
               </div>
-              <CardTitle className="text-2xl">Revisa tu correo</CardTitle>
+              <CardTitle className="text-2xl">Contraseña Temporal Generada</CardTitle>
               <CardDescription>
-                Hemos enviado las instrucciones de recuperación a <strong>{email}</strong>
+                Se ha generado una contraseña temporal para <strong>{email}</strong>
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
               <p className="text-sm text-muted-foreground mb-6">
-                Si no recibes el correo en unos minutos, revisa tu carpeta de spam.
+                La contraseña temporal se encuentra en los logs del servidor. Úsala para iniciar sesión y luego cámbiala desde tu perfil.
               </p>
               <Button variant="outline" asChild className="w-full">
                 <Link to="/login">
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  Volver al inicio de sesión
+                  Ir al inicio de sesión
                 </Link>
               </Button>
             </CardContent>
@@ -66,7 +87,7 @@ const ForgotPassword = () => {
           <CardHeader className="text-center pb-2">
             <CardTitle className="text-2xl">Recuperar Contraseña</CardTitle>
             <CardDescription>
-              Ingresa tu correo y te enviaremos las instrucciones
+              Ingresa tu correo y te generaremos una contraseña temporal
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -83,12 +104,20 @@ const ForgotPassword = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" size="lg">
-                Enviar Instrucciones
+              <div className="bg-muted/50 p-3 rounded-lg border border-border">
+                <p className="text-xs text-muted-foreground">
+                  Se generará una contraseña temporal y se mostrará en los logs del servidor. 
+                  Úsala para iniciar sesión y luego cámbiala desde tu perfil.
+                </p>
+              </div>
+
+              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                {isLoading ? "Procesando..." : "Generar Contraseña Temporal"}
               </Button>
             </form>
 

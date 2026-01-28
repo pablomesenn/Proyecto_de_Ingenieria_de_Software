@@ -1,13 +1,17 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
+import { toast } from "sonner";
+import { register } from "@/api/auth";
 
 const Register = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -20,10 +24,55 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement registration logic
-    console.log("Register attempt:", formData);
+    
+    // Validaciones
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+      toast.error("Todos los campos obligatorios deben estar llenos");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+
+    if (formData.password.length < 10) {
+      toast.error("La contraseña debe tener al menos 10 caracteres");
+      return;
+    }
+
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
+      toast.error("La contraseña debe contener al menos un caracter especial");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      const response = await register({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        password: formData.password,
+        confirm_password: formData.confirmPassword,
+      });
+      
+      toast.success("Cuenta creada exitosamente. Ahora puedes iniciar sesión.");
+      
+      // Redirigir al login después de 1.5 segundos
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+      
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || "Error al crear la cuenta";
+      toast.error(errorMessage);
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,6 +111,7 @@ const Register = () => {
                     value={formData.name}
                     onChange={handleChange}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -79,6 +129,7 @@ const Register = () => {
                     value={formData.email}
                     onChange={handleChange}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -97,6 +148,7 @@ const Register = () => {
                     className="pl-10"
                     value={formData.phone}
                     onChange={handleChange}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -109,12 +161,12 @@ const Register = () => {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder="Mínimo 10 caracteres"
                     className="pl-10 pr-10"
                     value={formData.password}
                     onChange={handleChange}
                     required
-                    minLength={8}
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
@@ -124,6 +176,19 @@ const Register = () => {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {formData.password && (
+                  <div className="text-xs space-y-1">
+                    {formData.password.length < 10 && (
+                      <p className="text-destructive">Mínimo 10 caracteres</p>
+                    )}
+                    {formData.password.length >= 10 && !/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) && (
+                      <p className="text-destructive">Debe contener al menos un caracter especial</p>
+                    )}
+                    {formData.password.length >= 10 && /[!@#$%^&*(),.?":{}|<>]/.test(formData.password) && (
+                      <p className="text-success">✓ Contraseña válida</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -139,12 +204,16 @@ const Register = () => {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     required
+                    disabled={isLoading}
                   />
                 </div>
+                {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                  <p className="text-xs text-destructive">Las contraseñas no coinciden</p>
+                )}
               </div>
 
-              <Button type="submit" className="w-full" size="lg">
-                Crear Cuenta
+              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                {isLoading ? "Creando cuenta..." : "Crear Cuenta"}
               </Button>
             </form>
 

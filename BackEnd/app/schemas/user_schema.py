@@ -10,6 +10,16 @@ class UpdateProfileSchema(Schema):
     email = fields.Email(required=False)
 
 
+class ChangePasswordSchema(Schema):
+    """Schema para cambiar contraseña"""
+    current_password = fields.Str(required=True, validate=validate.Length(min=1))
+    new_password = fields.Str(
+        required=True, 
+        validate=validate.Length(min=10, error="La contraseña debe tener al menos 10 caracteres")
+    )
+    confirm_password = fields.Str(required=True)
+
+
 class CreateUserSchema(Schema):
     """Schema para crear usuario (ADMIN)"""
     email = fields.Email(required=True)

@@ -86,6 +86,48 @@ class UserService:
         # Retornar usuario actualizado
         return self.get_user_by_id(user_id)
     
+    def change_password(self, user_id, current_password, new_password):
+        """Cambia la contraseña de un usuario"""
+        from werkzeug.security import check_password_hash, generate_password_hash
+        
+        # Validar que el usuario existe
+        user = self.users_collection.find_one({'_id': ObjectId(user_id)})
+        if not user:
+            raise ValueError("Usuario no encontrado")
+        
+        # Verificar contraseña actual
+        if not check_password_hash(user['password'], current_password):
+            raise ValueError("Contraseña actual incorrecta")
+        
+        # Validar nueva contraseña
+        if not self._validate_password(new_password):
+            raise ValueError("La nueva contraseña debe tener al menos 10 caracteres y 1 caracter especial")
+        
+        # Verificar que la nueva contraseña sea diferente
+        if check_password_hash(user['password'], new_password):
+            raise ValueError("La nueva contraseña debe ser diferente a la actual")
+        
+        # Actualizar contraseña
+        hashed_password = generate_password_hash(new_password)
+        result = self.users_collection.update_one(
+            {'_id': ObjectId(user_id)},
+            {
+                '$set': {
+                    'password': hashed_password,
+                    'updated_at': datetime.utcnow()
+                }
+            }
+        )
+        
+        if result.modified_count == 0:
+            raise ValueError("No se pudo actualizar la contraseña")
+        
+        # Registrar auditoría
+        self._log_audit(user_id, 'change_password', user_id)
+        
+        logger.info(f"Contraseña cambiada exitosamente para usuario {user_id}")
+        return True
+    
     def create_user(self, user_data):
         """Crea un nuevo usuario (ADMIN)"""
         from werkzeug.security import generate_password_hash

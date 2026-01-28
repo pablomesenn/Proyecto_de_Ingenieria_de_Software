@@ -178,3 +178,93 @@ class AuthService:
             
         except Exception as e:
             return {'valid': False, 'reason': str(e)}
+    
+    def reset_password_temporary(self, email):
+        """
+        Genera una contraseña temporal para el usuario
+        y la actualiza en la base de datos
+        """
+        import secrets
+        import string
+        from werkzeug.security import generate_password_hash
+        
+        # Buscar usuario por email
+        user = self.users_collection.find_one({'email': email})
+        
+        if not user:
+            raise ValueError("No existe un usuario con ese email")
+        
+        # Verificar que la cuenta esté activa
+        if user.get('state') != 'activo':
+            raise ValueError("La cuenta no está activa")
+        
+        # Generar contraseña temporal aleatoria (10 caracteres: letras, números y un especial)
+        alphabet = string.ascii_letters + string.digits
+        temp_password = ''.join(secrets.choice(alphabet) for i in range(9))
+        # Agregar un caracter especial al final para cumplir requisitos
+        temp_password += secrets.choice('!@#$%^&*')
+        
+        # Hash de la contraseña temporal
+        hashed_password = generate_password_hash(temp_password)
+        
+        # Actualizar contraseña en la base de datos
+        self.users_collection.update_one(
+            {'_id': user['_id']},
+            {
+                '$set': {
+                    'password': hashed_password,
+                    'password_reset_at': datetime.utcnow()
+                }
+            }
+        )
+        
+        # Loguear información (por ahora en lugar de enviar email)
+        logger.info("="*50)
+        logger.info("RECUPERACIÓN DE CONTRASEÑA")
+        logger.info(f"Email: {email}")
+        logger.info(f"Contraseña temporal: {temp_password}")
+        logger.info("="*50)
+        
+        return {
+            'message': 'Contraseña temporal generada',
+            'email': email
+        }
+    
+    def register_user(self, email, password, name, phone=None):
+        """
+        Registra un nuevo usuario en el sistema
+        Por defecto con rol CLIENT y estado activo
+        """
+        from werkzeug.security import generate_password_hash
+        
+        # Verificar que el email no exista
+        existing_user = self.users_collection.find_one({'email': email})
+        if existing_user:
+            raise ValueError("El email ya está registrado")
+        
+        # Crear usuario
+        new_user = {
+            'email': email,
+            'password': generate_password_hash(password),
+            'name': name,
+            'phone': phone,
+            'role': 'CLIENT',
+            'state': 'activo',
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow(),
+            'last_login': None
+        }
+        
+        result = self.users_collection.insert_one(new_user)
+        
+        logger.info(f"Usuario registrado: {email} (ID: {result.inserted_id})")
+        
+        # Retornar datos del usuario sin la contraseña
+        return {
+            'id': str(result.inserted_id),
+            'email': email,
+            'name': name,
+            'phone': phone,
+            'role': 'CLIENT',
+            'state': 'activo'
+        }

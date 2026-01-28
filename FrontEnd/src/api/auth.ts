@@ -49,3 +49,33 @@ export async function refreshToken(): Promise<{ access_token: string; refresh_to
   
   return data;
 }
+
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const data = await apiPost<{ message: string }>("/api/auth/forgot-password", { email });
+  return data;
+}
+
+export interface RegisterData {
+  name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  confirm_password: string;
+}
+
+export interface RegisterResponse {
+  message: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    phone?: string;
+    role: string;
+    state: string;
+  };
+}
+
+export async function register(data: RegisterData): Promise<RegisterResponse> {
+  const response = await apiPost<RegisterResponse>("/api/auth/register", data);
+  return response;
+}

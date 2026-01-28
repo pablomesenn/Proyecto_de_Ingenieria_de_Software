@@ -1,0 +1,187 @@
+"""
+Servicio de envío de correos electrónicos
+"""
+from flask import render_template_string, current_app
+from flask_mail import Message
+from app import mail
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+
+
+class EmailService:
+    """Servicio para enviar correos electrónicos"""
+    
+    @staticmethod
+    def send_password_reset_email(user_email: str, user_name: str, temp_password: str) -> bool:
+        """
+        Envía correo con contraseña temporal
+        
+        Args:
+            user_email: Email del usuario
+            user_name: Nombre del usuario
+            temp_password: Contraseña temporal generada
+            
+        Returns:
+            True si se envió correctamente, False si hubo error
+        """
+        try:
+            # Template del email
+            html_template = """
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Recuperación de Contraseña - Pisos Kermy</title>
+                <style>
+                    body {
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                    }
+                    .container {
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f9f9f9;
+                        border-radius: 8px;
+                    }
+                    .header {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 30px;
+                        border-radius: 8px 8px 0 0;
+                        text-align: center;
+                    }
+                    .logo {
+                        font-size: 28px;
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                    }
+                    .content {
+                        background-color: white;
+                        padding: 30px;
+                        border-radius: 0 0 8px 8px;
+                    }
+                    .greeting {
+                        font-size: 16px;
+                        margin-bottom: 20px;
+                    }
+                    .password-box {
+                        background-color: #f0f0f0;
+                        border-left: 4px solid #667eea;
+                        padding: 20px;
+                        margin: 30px 0;
+                        font-family: monospace;
+                        font-size: 18px;
+                        letter-spacing: 2px;
+                        text-align: center;
+                        border-radius: 4px;
+                    }
+                    .password {
+                        color: #667eea;
+                        font-weight: bold;
+                    }
+                    .instructions {
+                        background-color: #e8f4f8;
+                        padding: 15px;
+                        border-radius: 4px;
+                        margin: 20px 0;
+                        border-left: 4px solid #17a2b8;
+                    }
+                    .instructions li {
+                        margin: 8px 0;
+                    }
+                    .footer {
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #ddd;
+                        font-size: 12px;
+                        color: #666;
+                    }
+                    .warning {
+                        color: #e74c3c;
+                        font-weight: bold;
+                        margin: 15px 0;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">🏗️ Pisos Kermy</div>
+                        <div>Jacó S.A.</div>
+                    </div>
+                    <div class="content">
+                        <div class="greeting">
+                            ¡Hola {{ user_name }}!
+                        </div>
+                        
+                        <p>Hemos recibido una solicitud para recuperar tu contraseña. Aquí te proporcionamos una contraseña temporal para que puedas acceder a tu cuenta:</p>
+                        
+                        <div class="password-box">
+                            Contraseña temporal:<br>
+                            <span class="password">{{ temp_password }}</span>
+                        </div>
+                        
+                        <div class="instructions">
+                            <strong>Pasos para recuperar tu acceso:</strong>
+                            <ol>
+                                <li>Ingresa a <a href="https://pisos-kermy.com/login">nuestro sitio web</a></li>
+                                <li>Usa tu correo: <strong>{{ user_email }}</strong></li>
+                                <li>Usa la contraseña temporal mostrada arriba</li>
+                                <li>Una vez dentro, dirígete a tu perfil</li>
+                                <li>Cambia tu contraseña por una nueva de tu preferencia</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="warning">
+                            ⚠️ Por seguridad, esta contraseña temporal expirará en 24 horas. Si no la utilizas en ese tiempo, deberás solicitar una nueva.
+                        </div>
+                        
+                        <p><strong>Requisitos para tu nueva contraseña:</strong></p>
+                        <ul>
+                            <li>Mínimo 10 caracteres</li>
+                            <li>Al menos 1 caracter especial (!@#$%^&*)</li>
+                        </ul>
+                        
+                        <div class="footer">
+                            <p>Si no solicitaste recuperar tu contraseña, por favor ignora este correo y tu cuenta permanecerá segura.</p>
+                            <p>© 2024-2026 Pisos Kermy Jacó S.A. Todos los derechos reservados.</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Renderizar template
+            html_body = render_template_string(
+                html_template,
+                user_name=user_name,
+                user_email=user_email,
+                temp_password=temp_password
+            )
+            
+            # Crear mensaje
+            msg = Message(
+                subject='🔐 Contraseña Temporal - Pisos Kermy',
+                recipients=[user_email],
+                html=html_body,
+                sender=(
+                    current_app.config.get('SMTP_FROM_NAME', 'Pisos Kermy'),
+                    current_app.config.get('SMTP_FROM_EMAIL') or os.getenv('SMTP_FROM_EMAIL', 'noreply@pisos-kermy.com')
+                )
+            )
+            
+            # Enviar
+            mail.send(msg)
+            logger.info(f"Email de recuperación enviado a {user_email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error al enviar email a {user_email}: {str(e)}")
+            return False
