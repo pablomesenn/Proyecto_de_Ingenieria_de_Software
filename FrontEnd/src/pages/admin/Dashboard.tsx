@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,102 +16,112 @@ import {
   XCircle,
   Eye,
 } from "lucide-react";
-
-// Mock data
-const stats = [
-  {
-    name: "Reservas Pendientes",
-    value: 12,
-    change: "+3 hoy",
-    changeType: "increase" as const,
-    icon: CalendarClock,
-    href: "/admin/reservations",
-    color: "text-warning",
-    bgColor: "bg-warning/10",
-  },
-  {
-    name: "Productos Activos",
-    value: 156,
-    change: "8 sin stock",
-    changeType: "warning" as const,
-    icon: Package,
-    href: "/admin/products",
-    color: "text-success",
-    bgColor: "bg-success/10",
-  },
-  {
-    name: "Usuarios Registrados",
-    value: 324,
-    change: "+12 este mes",
-    changeType: "increase" as const,
-    icon: Users,
-    href: "/admin/users",
-    color: "text-primary",
-    bgColor: "bg-primary/10",
-  },
-  {
-    name: "Alertas Activas",
-    value: 5,
-    change: "Requieren atención",
-    changeType: "warning" as const,
-    icon: AlertTriangle,
-    href: "/admin/inventory",
-    color: "text-destructive",
-    bgColor: "bg-destructive/10",
-  },
-];
-
-const pendingReservations = [
-  {
-    id: "RES-001",
-    customer: "María García",
-    items: 3,
-    date: "2024-01-15",
-    expiresIn: "2 días",
-    total: "15 unidades",
-  },
-  {
-    id: "RES-002",
-    customer: "Carlos López",
-    items: 5,
-    date: "2024-01-14",
-    expiresIn: "1 día",
-    total: "28 unidades",
-  },
-  {
-    id: "RES-003",
-    customer: "Ana Martínez",
-    items: 2,
-    date: "2024-01-14",
-    expiresIn: "3 días",
-    total: "8 unidades",
-  },
-];
-
-const expiringReservations = [
-  { id: "RES-005", customer: "Pedro Sánchez", expiresIn: "4 horas" },
-  { id: "RES-008", customer: "Laura Fernández", expiresIn: "8 horas" },
-];
-
-const lowStockProducts = [
-  { id: "1", name: "Porcelanato Terrazo Blanco", variant: "60x60", stock: 5 },
-  { id: "2", name: "Mármol Calacatta Gold", variant: "80x160", stock: 2 },
-  { id: "3", name: "Cerámica Subway Blanca", variant: "10x20", stock: 8 },
-];
+import {
+  getDashboardStats,
+  getPendingReservations,
+  getExpiringReservations,
+  getLowStockProducts,
+  type DashboardStats as DashboardStatsType,
+  type PendingReservation,
+  type ExpiringReservation,
+  type LowStockProduct,
+} from "@/api/dashboard";
 
 const Dashboard = () => {
+  const [stats, setStats] = useState<DashboardStatsType | null>(null);
+  const [pendingReservations, setPendingReservations] = useState<PendingReservation[]>([]);
+  const [expiringReservations, setExpiringReservations] = useState<ExpiringReservation[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [statsData, pendingData, expiringData, lowStockData] = await Promise.all([
+          getDashboardStats(),
+          getPendingReservations(),
+          getExpiringReservations(),
+          getLowStockProducts(),
+        ]);
+
+        setStats(statsData);
+        setPendingReservations(pendingData);
+        setExpiringReservations(expiringData);
+        setLowStockProducts(lowStockData);
+      } catch (error) {
+        console.error("Error cargando datos del dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading || !stats) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-muted-foreground">Cargando...</div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  const statsCards = [
+    {
+      name: "Reservas Pendientes",
+      value: stats.pending_reservations.value,
+      change: stats.pending_reservations.change,
+      changeType: "increase" as const,
+      icon: CalendarClock,
+      href: "/admin/reservations",
+      color: "text-warning",
+      bgColor: "bg-warning/10",
+    },
+    {
+      name: "Productos Activos",
+      value: stats.active_products.value,
+      change: `${stats.active_products.low_stock} sin stock`,
+      changeType: stats.active_products.low_stock > 0 ? ("warning" as const) : ("increase" as const),
+      icon: Package,
+      href: "/admin/products",
+      color: "text-success",
+      bgColor: "bg-success/10",
+    },
+    {
+      name: "Usuarios Registrados",
+      value: stats.total_users.value,
+      change: `+${stats.total_users.new_this_month} este mes`,
+      changeType: "increase" as const,
+      icon: Users,
+      href: "/admin/users",
+      color: "text-primary",
+      bgColor: "bg-primary/10",
+    },
+    {
+      name: "Alertas Activas",
+      value: stats.alerts.value,
+      change: "Requieren atención",
+      changeType: "warning" as const,
+      icon: AlertTriangle,
+      href: "/admin/inventory",
+      color: "text-destructive",
+      bgColor: "bg-destructive/10",
+    },
+  ];
+
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-2xl font-display font-bold">Panel de Administración</h1>
           <p className="text-muted-foreground">Resumen general del sistema</p>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
+          {statsCards.map((stat) => (
             <Link key={stat.name} to={stat.href}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
                 <CardContent className="p-6">
@@ -138,9 +149,7 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Main content grid */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Pending Reservations */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -152,97 +161,112 @@ const Dashboard = () => {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {pendingReservations.map((reservation) => (
-                <div
-                  key={reservation.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <CalendarClock className="h-5 w-5 text-primary" />
+              {pendingReservations.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No hay reservas pendientes
+                </p>
+              ) : (
+                pendingReservations.map((reservation) => (
+                  <div
+                    key={reservation._id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <CalendarClock className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{reservation.customer_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {reservation.items_count} productos • {reservation.total_units} unidades
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{reservation.customer}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {reservation.items} productos • {reservation.total}
-                      </p>
+                    <div className="text-right">
+                      {reservation.expires_in && (
+                        <Badge variant="pending" className="text-xs">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {reservation.expires_in}
+                        </Badge>
+                      )}
+                      <div className="flex gap-1 mt-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          asChild
+                        >
+                          <Link to={`/admin/reservations/${reservation._id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <Badge variant="pending" className="text-xs">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {reservation.expiresIn}
-                    </Badge>
-                    <div className="flex gap-1 mt-2">
-                      <Button size="icon" variant="ghost" className="h-7 w-7">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-success">
-                        <CheckCircle2 className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive">
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
-          {/* Alerts */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Alertas del Sistema</CardTitle>
               <CardDescription>Situaciones que requieren atención</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Expiring Reservations Alert */}
-              <div className="p-4 rounded-lg border border-warning/50 bg-warning/5">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="h-4 w-4 text-warning" />
-                  <span className="font-medium text-sm">Reservas por Expirar</span>
+              {expiringReservations.length > 0 && (
+                <div className="p-4 rounded-lg border border-warning/50 bg-warning/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-warning" />
+                    <span className="font-medium text-sm">Reservas por Expirar</span>
+                  </div>
+                  <div className="space-y-2">
+                    {expiringReservations.map((res) => (
+                      <div key={res._id} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{res.customer_name}</span>
+                        <span className="text-warning font-medium">{res.expires_in}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                    <Link to="/admin/reservations">Ver reservas</Link>
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  {expiringReservations.map((res) => (
-                    <div key={res.id} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{res.customer}</span>
-                      <span className="text-warning font-medium">{res.expiresIn}</span>
-                    </div>
-                  ))}
-                </div>
-                <Button variant="outline" size="sm" className="mt-3 w-full">
-                  Ver reservas
-                </Button>
-              </div>
+              )}
 
-              {/* Low Stock Alert */}
-              <div className="p-4 rounded-lg border border-destructive/50 bg-destructive/5">
-                <div className="flex items-center gap-2 mb-2">
-                  <Package className="h-4 w-4 text-destructive" />
-                  <span className="font-medium text-sm">Stock Bajo</span>
+              {lowStockProducts.length > 0 && (
+                <div className="p-4 rounded-lg border border-destructive/50 bg-destructive/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Package className="h-4 w-4 text-destructive" />
+                    <span className="font-medium text-sm">Stock Bajo</span>
+                  </div>
+                  <div className="space-y-2">
+                    {lowStockProducts.map((product) => (
+                      <div key={`${product._id}-${product.variant_name}`} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground truncate max-w-[200px]">
+                          {product.name} ({product.variant_name})
+                        </span>
+                        <Badge variant="destructive" className="text-xs">
+                          {product.stock} uds
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                  <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                    <Link to="/admin/inventory">Gestionar inventario</Link>
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  {lowStockProducts.map((product) => (
-                    <div key={product.id} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground truncate max-w-[200px]">
-                        {product.name} ({product.variant})
-                      </span>
-                      <Badge variant="destructive" className="text-xs">
-                        {product.stock} uds
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                  <Link to="/admin/inventory">Gestionar inventario</Link>
-                </Button>
-              </div>
+              )}
+
+              {expiringReservations.length === 0 && lowStockProducts.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No hay alertas activas
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick Actions */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Accesos Rápidos</CardTitle>
@@ -261,7 +285,7 @@ const Dashboard = () => {
                   <span className="text-sm">Ajustar Inventario</span>
                 </Link>
               </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Button variant="outline" className="h-auto py-4 flex flex col gap-2" asChild>
                 <Link to="/admin/users/new">
                   <Users className="h-5 w-5" />
                   <span className="text-sm">Nuevo Usuario</span>
@@ -281,7 +305,6 @@ const Dashboard = () => {
   );
 };
 
-// Helper function for className merging
 function cn(...classes: (string | undefined | false)[]) {
   return classes.filter(Boolean).join(" ");
 }

@@ -115,3 +115,18 @@ class CatalogService:
             "details": details,
             "timestamp": datetime.utcnow()
         })
+
+    # ------------------------
+    # Para Testing
+    # ------------------------
+
+    def list_public_products(self):
+        """
+        Productos visibles al público
+        """
+        products = list(self.product_repo.products.find({
+            "state": {"$ne": "eliminado"}
+        }))
+
+        return products
+

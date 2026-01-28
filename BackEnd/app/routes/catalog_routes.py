@@ -155,3 +155,31 @@ def delete_tag(tag_id):
     except Exception as e:
         logger.error(f"Error eliminando tag: {str(e)}")
         return jsonify({"error": "Error interno del servidor"}), 500
+
+@catalog_bp.route("/", methods=["GET"])
+def public_catalog():
+    """
+    Catálogo público de productos
+    Usado por tests y vista general
+    """
+    try:
+        products = catalog_service.list_public_products()
+
+        # Normalizar IDs
+        for p in products:
+            p["_id"] = str(p["_id"])
+            if "variants" in p:
+                for v in p["variants"]:
+                    if "_id" in v:
+                        v["_id"] = str(v["_id"])
+
+        return jsonify({
+            "products": products
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error obteniendo catálogo público: {str(e)}")
+        return jsonify({
+            "products": []
+        }), 200
+

@@ -24,6 +24,7 @@ from app.routes.auth import auth_bp
 from app.routes.users import users_bp
 from app.routes.reservations import reservations_bp
 from app.routes.catalog_routes import catalog_bp
+from app.routes.dashboard_routes import dashboard_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(users_bp, url_prefix='/api/users')
@@ -32,6 +33,7 @@ app.register_blueprint(products_bp, url_prefix='/api/products')
 app.register_blueprint(wishlist_bp, url_prefix='/api/wishlist')
 app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
 app.register_blueprint(catalog_bp, url_prefix="/api/catalog")
+app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
 
 # Inicializar jobs programados
 scheduler = init_scheduler()
@@ -51,7 +53,7 @@ try:
                 user = create_user(email=seed_email, password=seed_password, nombre=seed_name, rol=role)
                 app.logger.info(f"✓ Usuario semilla creado: {user.email}")
             else:
-                app.logger.info(f"ℹ️ Usuario semilla ya existe: {existing.email}")
+                app.logger.info(f"✓ Usuario semilla ya existe: {existing.email}")
 except Exception as e:
     # No detener el arranque por un error al insertar usuario semilla
     try:
