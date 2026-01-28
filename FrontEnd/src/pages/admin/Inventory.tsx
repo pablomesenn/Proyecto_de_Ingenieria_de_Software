@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,10 @@ import {
   AlertTriangle,
   History,
 } from "lucide-react";
+import { getAllInventory, fetchInventoryMovements } from "@/api/inventory";
+import { toast } from "sonner";
 
-// Mock data
+// Mock data - se reemplazará con datos reales
 const inventoryItems = [
   {
     id: "1",
@@ -42,60 +44,6 @@ const inventoryItems = [
     reserved: 15,
     available: 105,
     category: "Porcelanato",
-  },
-  {
-    id: "2",
-    productName: "Porcelanato Terrazo Blanco",
-    variant: "80x80",
-    totalStock: 85,
-    reserved: 8,
-    available: 77,
-    category: "Porcelanato",
-  },
-  {
-    id: "3",
-    productName: "Mármol Calacatta Gold",
-    variant: "60x120",
-    totalStock: 45,
-    reserved: 12,
-    available: 33,
-    category: "Mármol",
-  },
-  {
-    id: "4",
-    productName: "Mármol Calacatta Gold",
-    variant: "80x160",
-    totalStock: 2,
-    reserved: 0,
-    available: 2,
-    category: "Mármol",
-  },
-  {
-    id: "5",
-    productName: "Cerámica Rústica Terracota",
-    variant: "30x30",
-    totalStock: 0,
-    reserved: 0,
-    available: 0,
-    category: "Cerámica",
-  },
-  {
-    id: "6",
-    productName: "Granito Negro Galaxy",
-    variant: "60x60",
-    totalStock: 156,
-    reserved: 20,
-    available: 136,
-    category: "Granito",
-  },
-  {
-    id: "7",
-    productName: "Cerámica Subway Blanca",
-    variant: "10x20",
-    totalStock: 8,
-    reserved: 3,
-    available: 5,
-    category: "Cerámica",
   },
 ];
 
@@ -110,42 +58,67 @@ const movementHistory = [
     reason: "Recepción de proveedor",
     user: "Admin",
   },
-  {
-    id: "2",
-    date: "2024-01-15 10:15",
-    product: "Mármol Calacatta Gold",
-    variant: "80x160",
-    type: "salida" as const,
-    quantity: 10,
-    reason: "Venta completada",
-    user: "Admin",
-  },
-  {
-    id: "3",
-    date: "2024-01-14 16:45",
-    product: "Cerámica Subway Blanca",
-    variant: "10x20",
-    type: "ajuste" as const,
-    quantity: -5,
-    reason: "Corrección de inventario",
-    user: "Admin",
-  },
-  {
-    id: "4",
-    date: "2024-01-14 09:00",
-    product: "Granito Negro Galaxy",
-    variant: "60x60",
-    type: "entrada" as const,
-    quantity: 100,
-    reason: "Recepción de proveedor",
-    user: "Admin",
-  },
 ];
 
 const Inventory = () => {
+  const [loading, setLoading] = useState(true);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [movements, setMovements] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [stockFilter, setStockFilter] = useState<string>("all");
+
+  // Cargar datos desde la API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Cargar inventario
+        const inventoryResult = await getAllInventory(0, 100);
+        const transformedInventory = (inventoryResult.inventory || []).map((item: any) => {
+          const disponibilidad = (item.stock_total || 0) - (item.stock_retenido || 0);
+          return {
+            id: item._id || item.variant_id,
+            productName: item.product_name || "Producto desconocido",
+            variant: item.variant_size || "N/A",
+            totalStock: item.stock_total || 0,
+            reserved: item.stock_retenido || 0,
+            available: Math.max(0, disponibilidad),
+            category: "General", // Ajustar según tus datos
+          };
+        });
+        setInventoryItems(transformedInventory);
+
+        // Cargar historial de movimientos
+        const movementsResult = await fetchInventoryMovements({ limit: 50 });
+        const transformedMovements = (movementsResult.movements || []).map((movement: any) => ({
+          id: movement._id,
+          date: new Date(movement.creado_en).toLocaleString("es-ES"),
+          product: movement.product_name || "Producto desconocido",
+          variant: movement.variant_name || "N/A",
+          type: movement.movement_type === "adjustment" 
+            ? "ajuste" 
+            : movement.movement_type === "retain" 
+            ? "entrada" 
+            : movement.movement_type === "release"
+            ? "salida"
+            : movement.movement_type,
+          quantity: movement.quantity,
+          reason: movement.reason || "Sin especificar",
+          user: movement.actor_name || "Sistema",
+        }));
+        setMovements(transformedMovements);
+      } catch (error) {
+        console.error("Error cargando datos de inventario:", error);
+        toast.error("Error al cargar los datos de inventario");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const categories = [...new Set(inventoryItems.map((item) => item.category))];
 
@@ -172,6 +145,11 @@ const Inventory = () => {
 
   return (
     <AdminLayout>
+      {loading ? (
+        <div className="flex items-center justify-center h-96">
+          <p className="text-muted-foreground">Cargando datos de inventario...</p>
+        </div>
+      ) : (
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -387,48 +365,56 @@ const Inventory = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {movementHistory.map((movement) => (
-                      <TableRow key={movement.id}>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {movement.date}
-                        </TableCell>
-                        <TableCell className="font-medium">{movement.product}</TableCell>
-                        <TableCell className="font-mono">{movement.variant}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              movement.type === "entrada"
-                                ? "success"
-                                : movement.type === "salida"
-                                ? "destructive"
-                                : "warning"
-                            }
-                          >
-                            {movement.type === "entrada"
-                              ? "Entrada"
-                              : movement.type === "salida"
-                              ? "Salida"
-                              : "Ajuste"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span
-                            className={
-                              movement.quantity > 0
-                                ? "text-success font-medium"
-                                : "text-destructive font-medium"
-                            }
-                          >
-                            {movement.quantity > 0 ? "+" : ""}
-                            {movement.quantity}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm">{movement.reason}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {movement.user}
+                    {movements.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-32 text-center">
+                          <p className="text-muted-foreground">No hay movimientos registrados</p>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      movements.map((movement) => (
+                        <TableRow key={movement.id}>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {movement.date}
+                          </TableCell>
+                          <TableCell className="font-medium">{movement.product}</TableCell>
+                          <TableCell className="font-mono">{movement.variant}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                movement.type === "entrada"
+                                  ? "success"
+                                  : movement.type === "salida"
+                                  ? "destructive"
+                                  : "warning"
+                              }
+                            >
+                              {movement.type === "entrada"
+                                ? "Entrada"
+                                : movement.type === "salida"
+                                ? "Salida"
+                                : "Ajuste"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span
+                              className={
+                                movement.quantity > 0
+                                  ? "text-success font-medium"
+                                  : "text-destructive font-medium"
+                              }
+                            >
+                              {movement.quantity > 0 ? "+" : ""}
+                              {movement.quantity}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm">{movement.reason}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {movement.user}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -436,6 +422,7 @@ const Inventory = () => {
           </TabsContent>
         </Tabs>
       </div>
+      )}
     </AdminLayout>
   );
 };

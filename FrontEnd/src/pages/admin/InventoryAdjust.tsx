@@ -41,6 +41,7 @@ const InventoryAdjust = () => {
   const [submitting, setSubmitting] = useState(false);
   const [variantStock, setVariantStock] = useState<number>(0);
   const [variantSize, setVariantSize] = useState<string>("");
+  const [variantStockMap, setVariantStockMap] = useState<Record<string, number>>({}); // Guardar stock de cada variante
 
   // Cargar productos al montar el componente
   useEffect(() => {
@@ -83,22 +84,54 @@ const InventoryAdjust = () => {
     ? variantStock + quantity
     : Math.max(0, variantStock - quantity);
 
+  // Cargar stock de todas las variantes cuando se selecciona un producto
+  const handleProductChange = async (productId: string) => {
+    setSelectedProduct(productId);
+    setSelectedVariant("");
+    setVariantSize("");
+    setVariantStock(0);
+    setVariantStockMap({});
+
+    const selectedProd = products.find((p) => p.id === productId);
+    if (!selectedProd) return;
+
+    // Cargar stock total para cada variante del producto
+    const stockMap: Record<string, number> = {};
+    for (const variant of selectedProd.variants) {
+      try {
+        const inventory = await getInventoryByVariant(variant.id);
+        stockMap[variant.id] = inventory.stock_total ?? 0;
+      } catch (error) {
+        console.error(`Error cargando stock para variante ${variant.id}:`, error);
+        stockMap[variant.id] = 0;
+      }
+    }
+    setVariantStockMap(stockMap);
+  };
+
   const handleVariantChange = async (value: string) => {
     setSelectedVariant(value);
 
     const v = product?.variants.find((item: any) => item.id === value);
     setVariantSize(v?.size || v?.tamano_pieza || "");
-    setVariantStock(v?.currentStock ?? v?.stock ?? 0);
-
-    try {
-      const inventory = await getInventoryByVariant(value);
-      // Usar stock_total para ajustes de inventario (no el disponible)
-      const resolvedStock = inventory.stock_total ?? 0;
-      setVariantStock(resolvedStock);
-      console.log("Stock obtenido para variante:", value, "Stock total:", resolvedStock);
-    } catch (error) {
-      console.error("Error obteniendo inventario de variante:", error);
-      toast.error("No se pudo obtener el stock de la variante");
+    
+    // Usar el stock del mapa (ya cargado previamente)
+    const stockFromMap = variantStockMap[value];
+    if (stockFromMap !== undefined) {
+      setVariantStock(stockFromMap);
+      console.log("Stock obtenido del mapa para variante:", value, "Stock total:", stockFromMap);
+    } else {
+      // Si no está en el mapa, cargar de la API
+      try {
+        const inventory = await getInventoryByVariant(value);
+        const resolvedStock = inventory.stock_total ?? 0;
+        setVariantStock(resolvedStock);
+        setVariantStockMap(prev => ({ ...prev, [value]: resolvedStock }));
+        console.log("Stock obtenido de API para variante:", value, "Stock total:", resolvedStock);
+      } catch (error) {
+        console.error("Error obteniendo inventario de variante:", error);
+        toast.error("No se pudo obtener el stock de la variante");
+      }
     }
   };
 
@@ -171,12 +204,7 @@ const InventoryAdjust = () => {
                   <Label>Producto *</Label>
                   <Select
                     value={selectedProduct}
-                    onValueChange={(value) => {
-                      setSelectedProduct(value);
-                      setSelectedVariant("");
-                      setVariantSize("");
-                      setVariantStock(0);
-                    }}
+                    onValueChange={handleProductChange}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un producto" />
@@ -200,13 +228,10 @@ const InventoryAdjust = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {product.variants.map((variant) => {
-                          const displayStock =
-                            variant.id === selectedVariant
-                              ? variantStock
-                              : variant.currentStock ?? variant.stock ?? 0;
+                          const displayStock = variantStockMap[variant.id] ?? 0;
                           return (
                             <SelectItem key={variant.id} value={variant.id}>
-                              {variant.size || variant.tamano_pieza || "Variante"} (Stock actual: {displayStock})
+                              {variant.size || variant.tamano_pieza || "Variante"} (Stock total: {displayStock})
                             </SelectItem>
                           );
                         })}
@@ -317,7 +342,10 @@ const InventoryAdjust = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Stock Actual:</span>
-                        <span className="font-medium">{variantStock}</span>
+                        <div className="text-right">
+                          <span className="font-medium text-lg">{variantStock}</span>
+                          <p className="text-xs text-muted-foreground">(Total incluyendo reservados)</p>
+                        </div>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Ajuste:</span>
