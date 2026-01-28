@@ -27,6 +27,7 @@ email-validator==2.1.0
 
 # Envío de emails
 secure-smtplib==0.1.1
+yagmail==0.15.293
 
 # Jobs programados
 APScheduler==3.10.4

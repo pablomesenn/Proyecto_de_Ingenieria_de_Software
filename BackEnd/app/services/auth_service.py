@@ -218,11 +218,22 @@ class AuthService:
             }
         )
         
-        # Loguear información (por ahora en lugar de enviar email)
+        # Enviar email con la contraseña temporal
+        from app.services.email_service import EmailService
+        user_name = user.get('name', 'Usuario')
+        email_sent = EmailService.send_password_reset_email(
+            user_email=email,
+            user_name=user_name,
+            temp_password=temp_password
+        )
+        
+        # Loguear información
         logger.info("="*50)
         logger.info("RECUPERACIÓN DE CONTRASEÑA")
         logger.info(f"Email: {email}")
+        logger.info(f"Nombre: {user_name}")
         logger.info(f"Contraseña temporal: {temp_password}")
+        logger.info(f"Email enviado: {'✓' if email_sent else '✗'}")
         logger.info("="*50)
         
         return {
