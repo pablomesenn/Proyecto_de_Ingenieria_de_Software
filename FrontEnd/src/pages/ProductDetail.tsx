@@ -22,6 +22,7 @@ import * as inventoryApi from "@/api/inventory";
 import { useWishlist } from "@/contexts/WishlistContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { createReservation } from "@/api/reservations";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +52,7 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [addingToWishlist, setAddingToWishlist] = useState(false);
+  const [creatingReservation, setCreatingReservation] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   useEffect(() => {
@@ -160,6 +162,50 @@ const ProductDetail = () => {
       });
     } finally {
       setAddingToWishlist(false);
+    }
+  };
+
+  const handleCreateReservation = async () => {
+    // Check if user is logged in
+    if (!user) {
+      setShowLoginDialog(true);
+      return;
+    }
+
+    if (!selectedVariant || !variantInventory?.disponible) return;
+
+    setCreatingReservation(true);
+    try {
+      const reservationData = {
+        items: [
+          {
+            variant_id: selectedVariant.id,
+            quantity: quantity,
+            product_name: product.name,
+            variant_size: selectedVariant.size,
+            price: selectedVariant.price,
+          },
+        ],
+      };
+
+      const result = await createReservation(reservationData);
+
+      toast({
+        title: "Reserva creada exitosamente",
+        description: `Tu reserva ha sido creada. Espera la confirmación del administrador.`,
+      });
+
+      // Navigate to reservations page
+      navigate("/reservations");
+    } catch (err) {
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "No se pudo crear la reserva",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingReservation(false);
     }
   };
 
@@ -384,15 +430,15 @@ const ProductDetail = () => {
                   <Button
                     className="flex-1"
                     size="lg"
-                    onClick={handleAddToWishlist}
-                    disabled={addingToWishlist || loadingInventory}
+                    onClick={handleCreateReservation}
+                    disabled={creatingReservation || loadingInventory}
                   >
-                    {addingToWishlist ? (
+                    {creatingReservation ? (
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                     ) : (
                       <ShoppingBag className="h-5 w-5 mr-2" />
                     )}
-                    Agregar a Lista
+                    Hacer Reserva
                   </Button>
                   <Button
                     variant="outline"
@@ -427,9 +473,9 @@ const ProductDetail = () => {
               <div className="text-sm">
                 <p className="font-medium">Proceso de Reserva</p>
                 <p className="text-muted-foreground">
-                  Al agregar a tu lista de interés, podrás crear una reserva más
-                  adelante. Las reservas requieren confirmación en 24 horas
-                  hábiles.
+                  Las reservas requieren confirmación del administrador en 24
+                  horas hábiles. Usa el botón de corazón para agregar a tu lista
+                  de interés sin crear una reserva inmediata.
                 </p>
               </div>
             </div>
@@ -444,8 +490,8 @@ const ProductDetail = () => {
                 Necesitas ingresar con una cuenta para acceder
               </AlertDialogTitle>
               <AlertDialogDescription>
-                Para agregar productos a tu lista de interés, necesitas iniciar
-                sesión con tu cuenta.
+                Para crear reservas o agregar productos a tu lista de interés,
+                necesitas iniciar sesión con tu cuenta.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
