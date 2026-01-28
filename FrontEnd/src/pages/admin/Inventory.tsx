@@ -78,6 +78,15 @@ const Inventory = () => {
         const inventoryResult = await getAllInventory(0, 100);
         const transformedInventory = (inventoryResult.inventory || []).map((item: any) => {
           const disponibilidad = (item.stock_total || 0) - (item.stock_retenido || 0);
+          // Extraer categoría del nombre del producto
+          const productNameLower = (item.product_name || "").toLowerCase();
+          let category = "General";
+          if (productNameLower.includes("porcelana")) category = "Porcelanato";
+          else if (productNameLower.includes("mármol")) category = "Mármol";
+          else if (productNameLower.includes("cerámic")) category = "Cerámica";
+          else if (productNameLower.includes("granito")) category = "Granito";
+          else if (productNameLower.includes("madera")) category = "Madera";
+          
           return {
             id: item._id || item.variant_id,
             productName: item.product_name || "Producto desconocido",
@@ -85,7 +94,7 @@ const Inventory = () => {
             totalStock: item.stock_total || 0,
             reserved: item.stock_retenido || 0,
             available: Math.max(0, disponibilidad),
-            category: "General", // Ajustar según tus datos
+            category: category,
           };
         });
         setInventoryItems(transformedInventory);
@@ -120,21 +129,32 @@ const Inventory = () => {
     loadData();
   }, []);
 
-  const categories = [...new Set(inventoryItems.map((item) => item.category))];
+  const categories = [...new Set(inventoryItems.map((item) => item.category))].sort();
 
   const filteredItems = inventoryItems.filter((item) => {
-    if (searchQuery && !item.productName.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
+    // Filtro de búsqueda: busca en nombre de producto y variante
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesName = item.productName.toLowerCase().includes(query);
+      const matchesVariant = item.variant.toLowerCase().includes(query);
+      if (!matchesName && !matchesVariant) {
+        return false;
+      }
     }
+    
+    // Filtro de categoría
     if (categoryFilter !== "all" && item.category !== categoryFilter) {
       return false;
     }
+    
+    // Filtro de stock
     if (stockFilter === "low" && item.available >= 20) {
       return false;
     }
-    if (stockFilter === "out" && item.available > 0) {
+    if (stockFilter === "out" && item.available !== 0) {
       return false;
     }
+    
     return true;
   });
 
