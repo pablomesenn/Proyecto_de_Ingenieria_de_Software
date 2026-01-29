@@ -26,7 +26,7 @@ class NotificationJob:
         
     def run(self):
         """Ejecuta el proceso de notificaciones"""
-        logger.info("Iniciando proceso de notificaciones de reservas por vencer")
+        logger.info("=== INICIANDO JOB DE NOTIFICACIONES (RESERVAS POR VENCER) ===")
         
         try:
             # Obtener reservas que vencen hoy
@@ -38,9 +38,11 @@ class NotificationJob:
                 'errors': 0
             }
             
+            logger.info(f"Reservas por vencer encontradas: {len(expiring_reservations)}")
+            
             for reservation in expiring_reservations:
                 try:
-                    # Obtener usuario usando UserService
+                    # Obtener usuario usando UserService (devuelve dict)
                     user = self.user_service.get_user_by_id(str(reservation.user_id))
                     
                     if not user:
@@ -48,7 +50,7 @@ class NotificationJob:
                         results['errors'] += 1
                         continue
                     
-                    # Enviar notificacion
+                    # Enviar notificacion (ahora funciona con dict)
                     self.notification_service.send_reservation_expiring_soon(user, reservation)
                     results['notified'] += 1
                     

@@ -159,156 +159,202 @@ class NotificationService:
         }
         return self.repository.create_notification_for_admins(notification_data)
     
-    # Metodos send_ para compatibilidad con llamadas desde routes
+    # ======================================================================
+    # METODOS send_ CORREGIDOS - Funcionan con dict Y con objetos
+    # ======================================================================
+    
+    def _get_attr(self, obj, key, default=None):
+        """
+        Helper para obtener atributo de objeto o dict
+        Funciona tanto con obj.atributo como obj['key']
+        """
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        else:
+            return getattr(obj, key, default)
     
     def send_reservation_created(self, user, reservation):
         """Envia notificacion y correo cuando se crea una reserva"""
         try:
+            # Obtener datos (funciona con dict o objeto)
+            reservation_id = self._get_attr(reservation, '_id')
+            user_nombre = self._get_attr(user, 'nombre')
+            user_email = self._get_attr(user, 'email')
+            
             # Crear notificacion in-app para admins
             self.notify_new_reservation(
-                reservation_id=str(reservation._id),
-                customer_name=user.nombre,
-                customer_email=user.email
+                reservation_id=str(reservation_id),
+                customer_name=user_nombre,
+                customer_email=user_email
             )
             
             # Enviar correo al cliente
             self._send_reservation_email(
-                user_email=user.email,
-                user_name=user.nombre,
+                user_email=user_email,
+                user_name=user_nombre,
                 reservation=reservation,
                 email_type='created'
             )
             
-            logger.info(f"Notificacion de reserva creada enviada para reserva {reservation._id}")
+            logger.info(f"Notificacion de reserva creada enviada para reserva {reservation_id}")
         except Exception as e:
             logger.error(f"Error enviando notificacion de reserva creada: {str(e)}")
     
     def send_reservation_approved(self, user, reservation):
         """Envia notificacion y correo cuando se aprueba una reserva"""
         try:
+            # Obtener datos (funciona con dict o objeto)
+            user_id = self._get_attr(user, '_id')
+            reservation_id = self._get_attr(reservation, '_id')
+            user_nombre = self._get_attr(user, 'nombre')
+            user_email = self._get_attr(user, 'email')
+            
             # Crear notificacion in-app
             self.notify_reservation_approved(
-                user_id=str(user._id),
-                reservation_id=str(reservation._id)
+                user_id=str(user_id),
+                reservation_id=str(reservation_id)
             )
             
             # Enviar correo
             self._send_reservation_email(
-                user_email=user.email,
-                user_name=user.nombre,
+                user_email=user_email,
+                user_name=user_nombre,
                 reservation=reservation,
                 email_type='approved'
             )
             
-            logger.info(f"Notificacion de reserva aprobada enviada para reserva {reservation._id}")
+            logger.info(f"Notificacion de reserva aprobada enviada para reserva {reservation_id}")
         except Exception as e:
             logger.error(f"Error enviando notificacion de reserva aprobada: {str(e)}")
     
     def send_reservation_rejected(self, user, reservation):
         """Envia notificacion y correo cuando se rechaza una reserva"""
         try:
+            # Obtener datos (funciona con dict o objeto)
+            user_id = self._get_attr(user, '_id')
+            reservation_id = self._get_attr(reservation, '_id')
+            user_nombre = self._get_attr(user, 'nombre')
+            user_email = self._get_attr(user, 'email')
+            
             # Crear notificacion in-app
-            reason = reservation.admin_notes if hasattr(reservation, 'admin_notes') else None
+            reason = self._get_attr(reservation, 'admin_notes')
             self.notify_reservation_rejected(
-                user_id=str(user._id),
-                reservation_id=str(reservation._id),
+                user_id=str(user_id),
+                reservation_id=str(reservation_id),
                 reason=reason
             )
             
             # Enviar correo
             self._send_reservation_email(
-                user_email=user.email,
-                user_name=user.nombre,
+                user_email=user_email,
+                user_name=user_nombre,
                 reservation=reservation,
                 email_type='rejected'
             )
             
-            logger.info(f"Notificacion de reserva rechazada enviada para reserva {reservation._id}")
+            logger.info(f"Notificacion de reserva rechazada enviada para reserva {reservation_id}")
         except Exception as e:
             logger.error(f"Error enviando notificacion de reserva rechazada: {str(e)}")
     
     def send_reservation_cancelled(self, user, reservation):
         """Envia notificacion y correo cuando se cancela una reserva"""
         try:
+            # Obtener datos (funciona con dict o objeto)
+            reservation_id = self._get_attr(reservation, '_id')
+            user_nombre = self._get_attr(user, 'nombre')
+            user_email = self._get_attr(user, 'email')
+            
             # Enviar correo
             self._send_reservation_email(
-                user_email=user.email,
-                user_name=user.nombre,
+                user_email=user_email,
+                user_name=user_nombre,
                 reservation=reservation,
                 email_type='cancelled'
             )
             
-            logger.info(f"Notificacion de reserva cancelada enviada para reserva {reservation._id}")
+            logger.info(f"Notificacion de reserva cancelada enviada para reserva {reservation_id}")
         except Exception as e:
             logger.error(f"Error enviando notificacion de reserva cancelada: {str(e)}")
     
     def send_reservation_expired(self, user, reservation):
         """Envia notificacion y correo cuando expira una reserva"""
         try:
+            # Obtener datos (funciona con dict o objeto)
+            user_id = self._get_attr(user, '_id')
+            reservation_id = self._get_attr(reservation, '_id')
+            user_nombre = self._get_attr(user, 'nombre')
+            user_email = self._get_attr(user, 'email')
+            
             # Crear notificacion in-app
             self.notify_reservation_expired(
-                user_id=str(user._id),
-                reservation_id=str(reservation._id)
+                user_id=str(user_id),
+                reservation_id=str(reservation_id)
             )
             
             # Enviar correo
             self._send_reservation_email(
-                user_email=user.email,
-                user_name=user.nombre,
+                user_email=user_email,
+                user_name=user_nombre,
                 reservation=reservation,
                 email_type='expired'
             )
             
-            logger.info(f"Notificacion de reserva expirada enviada para reserva {reservation._id}")
+            logger.info(f"Notificacion de reserva expirada enviada para reserva {reservation_id}")
         except Exception as e:
             logger.error(f"Error enviando notificacion de reserva expirada: {str(e)}")
     
     def send_reservation_expiring_soon(self, user, reservation):
         """Envia notificacion y correo cuando una reserva esta por vencer (CU-012)"""
         try:
-            # Calcular horas restantes
-            if hasattr(reservation, 'expires_at') and reservation.expires_at:
-                hours_remaining = int((reservation.expires_at - datetime.utcnow()).total_seconds() / 3600)
-                if hours_remaining < 0:
-                    hours_remaining = 0
-            else:
-                hours_remaining = 0
+            # Obtener datos (funciona con dict o objeto)
+            user_id = self._get_attr(user, '_id')
+            reservation_id = self._get_attr(reservation, '_id')
+            user_nombre = self._get_attr(user, 'nombre')
+            user_email = self._get_attr(user, 'email')
+            expires_at = self._get_attr(reservation, 'expires_at')
             
-            # Crear notificacion in-app
-            self.notify_reservation_expiring(
-                user_id=str(user._id),
-                reservation_id=str(reservation._id),
-                hours_remaining=hours_remaining
-            )
+            # Calcular horas restantes
+            if expires_at:
+                from datetime import datetime
+                time_left = expires_at - datetime.utcnow()
+                hours_remaining = max(1, int(time_left.total_seconds() / 3600))
+                
+                # Crear notificacion in-app
+                self.notify_reservation_expiring(
+                    user_id=str(user_id),
+                    reservation_id=str(reservation_id),
+                    hours_remaining=hours_remaining
+                )
             
             # Enviar correo
             self._send_reservation_email(
-                user_email=user.email,
-                user_name=user.nombre,
+                user_email=user_email,
+                user_name=user_nombre,
                 reservation=reservation,
                 email_type='expiring_soon'
             )
             
-            logger.info(f"Notificacion de reserva por vencer enviada para reserva {reservation._id}")
+            logger.info(f"Notificacion de reserva por vencer enviada para reserva {reservation_id}")
         except Exception as e:
             logger.error(f"Error enviando notificacion de reserva por vencer: {str(e)}")
     
     def _send_reservation_email(self, user_email, user_name, reservation, email_type):
-        """Metodo auxiliar para enviar correos de reservas"""
+        """Envia correo electronico usando yagmail"""
+        import yagmail
+        import os
+        
         try:
-            import yagmail
-            import os
+            # Configurar yagmail
+            gmail_user = os.getenv('GMAIL_USER', 'kermypisos@gmail.com')
+            gmail_app_password = os.getenv('GMAIL_APP_PASSWORD')
             
-            sender_email = os.getenv('SMTP_USERNAME', 'kermypisos@gmail.com')
-            sender_password = os.getenv('SMTP_PASSWORD', '')
-            
-            if not sender_email or not sender_password:
-                logger.warning("Credenciales SMTP no configuradas, no se puede enviar correo")
+            if not gmail_app_password:
+                logger.error("GMAIL_APP_PASSWORD no configurado en .env")
                 return
             
-            yag = yagmail.SMTP(sender_email, sender_password)
+            yag = yagmail.SMTP(gmail_user, gmail_app_password)
             
-            # Construir contenido segun tipo
+            # Construir correo segun tipo
             if email_type == 'created':
                 subject = 'Reserva Creada - Pisos Kermy'
                 message = self._build_created_email(user_name, reservation)
@@ -338,9 +384,13 @@ class NotificationService:
     
     def _build_created_email(self, user_name, reservation):
         """Construye el HTML del correo de reserva creada"""
+        items = self._get_attr(reservation, 'items', [])
         items_html = ""
-        for item in reservation.items:
-            items_html += f"<li>{item.get('product_name', 'Producto')} - {item.get('variant_size', '')} x{item.get('quantity', 1)}</li>"
+        for item in items:
+            product_name = item.get('product_name', 'Producto')
+            variant_size = item.get('variant_size', '')
+            quantity = item.get('quantity', 1)
+            items_html += f"<li>{product_name} - {variant_size} x{quantity}</li>"
         
         return f"""
         <!DOCTYPE html>
@@ -364,7 +414,7 @@ class NotificationService:
                     <p style="color: #e74c3c;"><strong>Importante:</strong> Esta reserva expira en 24 horas si no es aprobada.</p>
                 </div>
                 <div style="text-align: center; padding: 20px; font-size: 12px; color: #666;">
-                    <p>2024-2026 Pisos Kermy Jaco S.A.</p>
+                    <p>(c) 2024-2026 Pisos Kermy Jaco S.A.</p>
                 </div>
             </div>
         </body>
@@ -382,7 +432,6 @@ class NotificationService:
                 <h2>Hola {user_name}!</h2>
                 <p>Tu reserva ha sido <strong style="color: #28a745;">APROBADA</strong>.</p>
                 <p>Por favor contactanos para coordinar la entrega de tus productos.</p>
-                <p>Email: kermypisos@gmail.com</p>
             </div>
         </body>
         </html>
@@ -390,7 +439,7 @@ class NotificationService:
     
     def _build_rejected_email(self, user_name, reservation):
         """Construye el HTML del correo de reserva rechazada"""
-        reason = reservation.admin_notes if hasattr(reservation, 'admin_notes') and reservation.admin_notes else "No se especifico un motivo"
+        reason = self._get_attr(reservation, 'admin_notes', "No se especifico un motivo")
         return f"""
         <!DOCTYPE html>
         <html>
@@ -441,9 +490,13 @@ class NotificationService:
     
     def _build_expiring_soon_email(self, user_name, reservation):
         """Construye el HTML del correo de reserva por vencer (CU-012)"""
+        items = self._get_attr(reservation, 'items', [])
         items_html = ""
-        for item in reservation.items:
-            items_html += f"<li>{item.get('product_name', 'Producto')} - {item.get('variant_size', '')} x{item.get('quantity', 1)}</li>"
+        for item in items:
+            product_name = item.get('product_name', 'Producto')
+            variant_size = item.get('variant_size', '')
+            quantity = item.get('quantity', 1)
+            items_html += f"<li>{product_name} - {variant_size} x{quantity}</li>"
         
         return f"""
         <!DOCTYPE html>
@@ -468,7 +521,7 @@ class NotificationService:
                     <p>Email: kermypisos@gmail.com</p>
                 </div>
                 <div style="text-align: center; padding: 20px; font-size: 12px; color: #666;">
-                    <p>2024-2026 Pisos Kermy Jaco S.A.</p>
+                    <p>(c) 2024-2026 Pisos Kermy Jaco S.A.</p>
                 </div>
             </div>
         </body>

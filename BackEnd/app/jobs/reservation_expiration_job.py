@@ -26,7 +26,7 @@ class ReservationExpirationJob:
         
     def run(self):
         """Ejecuta el proceso de expiracion"""
-        logger.info("Iniciando proceso de expiracion de reservas")
+        logger.info("=== INICIANDO JOB DE EXPIRACION DE RESERVAS ===")
         
         try:
             # Expirar reservas vencidas
@@ -58,7 +58,7 @@ class ReservationExpirationJob:
         
         for reservation in expired_recently:
             try:
-                # Obtener usuario usando UserService
+                # Obtener usuario usando UserService (devuelve dict)
                 user = self.user_service.get_user_by_id(str(reservation['user_id']))
                 
                 if user:
@@ -66,7 +66,7 @@ class ReservationExpirationJob:
                     from app.models.reservation import Reservation
                     res_obj = Reservation.from_dict(reservation)
                     
-                    # Enviar notificacion
+                    # Enviar notificacion (ahora funciona con dict)
                     self.notification_service.send_reservation_expired(user, res_obj)
                     
             except Exception as e:
