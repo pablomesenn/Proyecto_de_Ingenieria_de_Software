@@ -1,34 +1,29 @@
-from apscheduler.schedulers.background import BackgroundScheduler
+"""
+Inicializacion del modulo de jobs programados
+"""
+from app.jobs.notification_job import setup_notification_job
 from app.jobs.reservation_expiration_job import setup_expiration_job
-from app.jobs.notification_job import setup_notification_job, setup_notification_queue_processor
+from apscheduler.schedulers.background import BackgroundScheduler
 import logging
-import atexit
 
 logger = logging.getLogger(__name__)
 
 
 def init_scheduler():
     """
-    Inicializa y configura el scheduler de jobs
-    Retorna el scheduler configurado
+    Inicializa el scheduler con todos los jobs
     """
     scheduler = BackgroundScheduler()
     
     # Configurar job de expiracion de reservas (cada 5 minutos)
     setup_expiration_job(scheduler)
     
-    # Configurar job de notificaciones (diario a las 9:00 AM)
+    # Configurar job de notificaciones diarias (9:00 AM)
     setup_notification_job(scheduler)
     
-    # Configurar procesador de cola de notificaciones (cada hora)
-    setup_notification_queue_processor(scheduler)
-    
-    # Iniciar scheduler
+    # Iniciar el scheduler
     scheduler.start()
     
-    # Asegurar que el scheduler se detenga al cerrar la aplicacion
-    atexit.register(lambda: scheduler.shutdown())
-    
-    logger.info("Scheduler de jobs iniciado exitosamente")
+    logger.info("Scheduler inicializado con todos los jobs")
     
     return scheduler

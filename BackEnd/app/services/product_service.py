@@ -16,10 +16,10 @@ class ProductService:
 
     def search_and_filter_catalog(self, search_text=None, categoria=None, tags=None, disponibilidad=True, skip=0, limit=20):
         """
-        Busca y filtra productos en el catÃ¡logo (CU-005)
+        Busca y filtra productos en el catalogo (CU-005)
         Calcula disponibilidad en tiempo real considerando reservas activas
         """
-        # Obtener productos segÃºn filtros
+        # Obtener productos segun filtros
         products = self.product_repo.search_and_filter(
             search_text=search_text,
             categoria=categoria,
@@ -72,7 +72,7 @@ class ProductService:
             raise ValueError("El nombre del producto es requerido")
 
         if not product_data.get('categoria'):
-            raise ValueError("La categorÃ­a es requerida")
+            raise ValueError("La categoria es requerida")
         
         if not product_data.get('imagen_url'):
             raise ValueError("La imagen es requerida")
@@ -82,7 +82,7 @@ class ProductService:
         
         # Validar que haya al menos una variante
         if not variantes_data or len(variantes_data) == 0:
-            raise ValueError("Debe agregar al menos una variante (tamaño)")
+            raise ValueError("Debe agregar al menos una variante (tamano)")
 
         # Establecer estado por defecto
         if 'estado' not in product_data:
@@ -103,20 +103,19 @@ class ProductService:
             variante['created_at'] = datetime.utcnow()
             created_variant = self.variant_repo.create(variante)
             
-            # Crear registro de inventario inicial
+            # Siempre crear registro de inventario inicial (incluso con stock 0)
             stock_inicial = variante.get('stock_inicial', 0)
-            if stock_inicial > 0:
-                self.inventory_repo.create_initial_stock(
-                    created_variant['_id'],
-                    stock_inicial,
-                    admin_id,
-                    'Inventario inicial'
-                )
+            self.inventory_repo.create_initial_stock(
+                created_variant['_id'],
+                stock_inicial,
+                admin_id,
+                'Inventario inicial'
+            )
 
-        # Registrar auditorÃ­a
+        # Registrar auditoria
         self._log_audit(admin_id, 'create_product', product_id)
 
-        # Invalidar caché
+        # Invalidar cache
         self.product_repo._invalidate_products_cache()
 
         return product
@@ -164,23 +163,22 @@ class ProductService:
                     created = self.variant_repo.create(variante_clean)
                     updated_ids.add(created['_id'])
                     
-                    # Crear inventario inicial si tiene stock
+                    # Siempre crear inventario inicial (incluso con stock 0)
                     stock_inicial = variante.get('stock_inicial', 0)
-                    if stock_inicial > 0:
-                        self.inventory_repo.create_initial_stock(
-                            created['_id'],
-                            stock_inicial,
-                            admin_id,
-                            'Inventario inicial'
-                        )
+                    self.inventory_repo.create_initial_stock(
+                        created['_id'],
+                        stock_inicial,
+                        admin_id,
+                        'Inventario inicial'
+                    )
             
-            # Eliminar variantes que no están en la lista actualizada
+            # Eliminar variantes que no estan en la lista actualizada
             for variant_id in existing_ids - updated_ids:
                 self.variant_repo.delete(variant_id)
 
         if success:
             self._log_audit(admin_id, 'update_product', product_id)
-            # Invalidar caché
+            # Invalidar cache
             self.product_repo._invalidate_products_cache()
 
         return self.product_repo.find_by_id(product_id)
@@ -191,7 +189,7 @@ class ProductService:
         Estados: activo, inactivo, agotado
         """
         if not ProductState.is_valid_state(new_state):
-            raise ValueError(f"Estado invÃ¡lido: {new_state}")
+            raise ValueError(f"Estado invalido: {new_state}")
 
         success = self.product_repo.update_state(product_id, new_state)
 
@@ -206,21 +204,28 @@ class ProductService:
 
     def get_categories(self):
         """
-        Obtiene todas las categorías desde la colección categories (no desde productos)
-        Esto permite mostrar categorías disponibles incluso si no hay productos que las usen
+        Obtiene todas las categorias desde la coleccion categories (no desde productos)
+        Esto permite mostrar categorias disponibles incluso si no hay productos que las usen
         """
         categories_docs = self.catalog_repo.list_categories()
-        # Extraer solo los nombres de las categorías
+        # Extraer solo los nombres de las categorias
         categories = [cat['name'] for cat in categories_docs]
-        logger.info(f"Categorías enviadas para nuevo producto desde colección categories: {categories}")
+        logger.info(f"Categorias enviadas para nuevo producto desde coleccion categories: {categories}")
         return categories
 
     def get_tags(self):
-        """Obtiene todos los tags disponibles"""
-        return self.product_repo.get_tags()
+        """
+        Obtiene todos los tags desde la coleccion tags (no desde productos)
+        Esto permite mostrar tags disponibles incluso si no hay productos que las usen
+        """
+        tags_docs = self.catalog_repo.list_tags()
+        # Extraer solo los nombres de los tags
+        tags = [tag['name'] for tag in tags_docs]
+        logger.info(f"Tags enviados para nuevo producto desde coleccion tags: {tags}")
+        return tags
 
     def _log_audit(self, actor_id, action, entity_id, details=None):
-        """Registra una acciÃ³n en auditorÃ­a"""
+        """Registra una accion en auditoria"""
         from app.config.database import get_db
         from bson import ObjectId
         from datetime import datetime

@@ -1,6 +1,7 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.services.reservation_service import ReservationService
 from app.services.notification_service import NotificationService
+from app.services.user_service import UserService
 from app.repositories.reservation_repository import ReservationRepository
 from app.config.database import get_db
 from bson import ObjectId
@@ -19,6 +20,7 @@ class NotificationJob:
     def __init__(self):
         self.reservation_service = ReservationService()
         self.notification_service = NotificationService()
+        self.user_service = UserService()
         self.reservation_repo = ReservationRepository()
         self.db = get_db()
         
@@ -38,21 +40,12 @@ class NotificationJob:
             
             for reservation in expiring_reservations:
                 try:
-                    # Obtener usuario
-                    user = self.db.users.find_one({'_id': ObjectId(reservation.user_id)})
+                    # Obtener usuario usando UserService
+                    user = self.user_service.get_user_by_id(str(reservation.user_id))
                     
                     if not user:
                         logger.warning(f"Usuario no encontrado para reserva {reservation._id}")
                         results['errors'] += 1
-                        continue
-                    
-                    # Verificar si ya se notifico para evitar duplicados
-                    if self.notification_service.notification_repo.check_if_already_notified(
-                        reservation._id,
-                        'reservation_expiring_soon'
-                    ):
-                        logger.info(f"Reserva {reservation._id} ya fue notificada")
-                        results['skipped'] += 1
                         continue
                     
                     # Enviar notificacion
@@ -67,22 +60,11 @@ class NotificationJob:
             
             logger.info(f"Notificaciones completadas: {results['notified']} enviadas, {results['skipped']} omitidas, {results['errors']} errores")
             
-            # Procesar cola de notificaciones pendientes
-            self._process_notification_queue()
-            
             return results
             
         except Exception as e:
             logger.error(f"Error en job de notificaciones: {str(e)}")
             return {'notified': 0, 'skipped': 0, 'errors': 1, 'error': str(e)}
-    
-    def _process_notification_queue(self):
-        """Procesa la cola de notificaciones pendientes"""
-        try:
-            results = self.notification_service.send_queued_notifications()
-            logger.info(f"Cola de notificaciones procesada: {results['sent']} enviadas, {results['failed']} fallidas de {results['total']} total")
-        except Exception as e:
-            logger.error(f"Error procesando cola de notificaciones: {str(e)}")
 
 
 def setup_notification_job(scheduler=None):
@@ -104,27 +86,5 @@ def setup_notification_job(scheduler=None):
     )
     
     logger.info("Job de notificaciones configurado (diario a las 9:00 AM)")
-    
-    return scheduler
-
-
-def setup_notification_queue_processor(scheduler=None):
-    """Configura un procesador adicional para la cola cada hora"""
-    if scheduler is None:
-        scheduler = BackgroundScheduler()
-    
-    job = NotificationJob()
-    
-    # Procesar cola cada hora
-    scheduler.add_job(
-        func=job._process_notification_queue,
-        trigger='interval',
-        hours=1,
-        id='notification_queue_processor',
-        name='Procesar cola de notificaciones',
-        replace_existing=True
-    )
-    
-    logger.info("Procesador de cola de notificaciones configurado (cada hora)")
     
     return scheduler

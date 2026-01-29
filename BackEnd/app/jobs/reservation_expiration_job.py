@@ -1,6 +1,7 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.services.reservation_service import ReservationService
 from app.services.notification_service import NotificationService
+from app.services.user_service import UserService
 from app.repositories.reservation_repository import ReservationRepository
 from app.config.database import get_db
 from bson import ObjectId
@@ -19,6 +20,7 @@ class ReservationExpirationJob:
     def __init__(self):
         self.reservation_service = ReservationService()
         self.notification_service = NotificationService()
+        self.user_service = UserService()
         self.reservation_repo = ReservationRepository()
         self.db = get_db()
         
@@ -56,8 +58,8 @@ class ReservationExpirationJob:
         
         for reservation in expired_recently:
             try:
-                # Obtener usuario
-                user = self.db.users.find_one({'_id': ObjectId(reservation['user_id'])})
+                # Obtener usuario usando UserService
+                user = self.user_service.get_user_by_id(str(reservation['user_id']))
                 
                 if user:
                     # Convertir a objeto Reservation

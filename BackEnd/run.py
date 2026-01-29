@@ -25,6 +25,7 @@ from app.routes.users import users_bp
 from app.routes.reservations import reservations_bp
 from app.routes.catalog_routes import catalog_bp
 from app.routes.dashboard_routes import dashboard_bp
+from app.routes.notifications import notifications_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(users_bp, url_prefix='/api/users')
@@ -34,6 +35,7 @@ app.register_blueprint(wishlist_bp, url_prefix='/api/wishlist')
 app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
 app.register_blueprint(catalog_bp, url_prefix="/api/catalog")
 app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
+app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
 
 # Inicializar jobs programados
 scheduler = init_scheduler()

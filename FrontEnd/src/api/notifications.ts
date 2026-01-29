@@ -37,28 +37,28 @@ const notificationService = {
     if (params?.skip) queryParams.append("skip", params.skip.toString());
 
     return await apiGet<NotificationsResponse>(
-      `/notifications/?${queryParams.toString()}`
+      `/api/notifications/?${queryParams.toString()}`
     );
   },
 
-  // Obtener conteo de no leídas
+  // Obtener conteo de no leidas
   getUnreadCount: async (): Promise<UnreadCountResponse> => {
-    return await apiGet<UnreadCountResponse>("/notifications/unread-count");
+    return await apiGet<UnreadCountResponse>("/api/notifications/unread-count");
   },
 
-  // Marcar notificación como leída
+  // Marcar notificacion como leida
   markAsRead: async (notificationId: string): Promise<void> => {
-    await apiPut<void>(`/notifications/${notificationId}/read`);
+    await apiPut<void>(`/api/notifications/${notificationId}/read`);
   },
 
-  // Marcar todas como leídas
+  // Marcar todas como leidas
   markAllAsRead: async (): Promise<{ marked_count: number }> => {
-    return await apiPut<{ marked_count: number }>("/notifications/mark-all-read");
+    return await apiPut<{ marked_count: number }>("/api/notifications/mark-all-read");
   },
 
-  // Eliminar notificación
+  // Eliminar notificacion
   deleteNotification: async (notificationId: string): Promise<void> => {
-    await apiDelete<void>(`/notifications/${notificationId}`);
+    await apiDelete<void>(`/api/notifications/${notificationId}`);
   },
 };
 
