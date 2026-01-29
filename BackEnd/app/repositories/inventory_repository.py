@@ -150,6 +150,7 @@ class InventoryRepository:
                     'actualizado_en': 1,
                     'creado_en': 1,
                     'product_name': '$product_details.nombre',
+                    'product_category': '$product_details.categoria',
                     'variant_size': '$variant_details.tamano_pieza',
                     'variant_price': '$variant_details.precio'
                 }

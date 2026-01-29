@@ -44,13 +44,17 @@ class InventoryService:
 
     def get_all_inventory(self, skip=0, limit=20):
         """
-        Obtiene todo el inventario con informaciÃ³n de variantes
+        Obtiene todo el inventario con información de variantes
         """
         inventories = self.inventory_repo.get_all_with_details(skip=skip, limit=limit)
 
         result = []
+        categories = set()
         for inv in inventories:
             disponibilidad = inv.get('stock_total', 0) - inv.get('stock_retenido', 0)
+            category = inv.get('product_category')
+            if category:
+                categories.add(category)
 
             result.append({
                 '_id': str(inv['_id']),
@@ -59,12 +63,14 @@ class InventoryService:
                 'stock_retenido': inv['stock_retenido'],
                 'disponibilidad': max(0, disponibilidad),
                 'product_name': inv.get('product_name'),
+                'product_category': category,
                 'variant_size': inv.get('variant_size'),
                 'variant_price': inv.get('variant_price'),
                 'actualizado_en': inv.get('actualizado_en'),
                 'creado_en': inv.get('creado_en')
             })
 
+        logger.info(f"Categorías enviadas al frontend: {sorted(categories)}")
         return result
 
     def create_inventory(self, variant_id, stock_total, stock_retenido=0, admin_id=None):

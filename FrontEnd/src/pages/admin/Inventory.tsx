@@ -78,14 +78,6 @@ const Inventory = () => {
         const inventoryResult = await getAllInventory(0, 100);
         const transformedInventory = (inventoryResult.inventory || []).map((item: any) => {
           const disponibilidad = (item.stock_total || 0) - (item.stock_retenido || 0);
-          // Extraer categoría del nombre del producto
-          const productNameLower = (item.product_name || "").toLowerCase();
-          let category = "General";
-          if (productNameLower.includes("porcelana")) category = "Porcelanato";
-          else if (productNameLower.includes("mármol")) category = "Mármol";
-          else if (productNameLower.includes("cerámic")) category = "Cerámica";
-          else if (productNameLower.includes("granito")) category = "Granito";
-          else if (productNameLower.includes("madera")) category = "Madera";
           
           return {
             id: item._id || item.variant_id,
@@ -94,7 +86,7 @@ const Inventory = () => {
             totalStock: item.stock_total || 0,
             reserved: item.stock_retenido || 0,
             available: Math.max(0, disponibilidad),
-            category: category,
+            category: item.product_category || "General",
           };
         });
         setInventoryItems(transformedInventory);

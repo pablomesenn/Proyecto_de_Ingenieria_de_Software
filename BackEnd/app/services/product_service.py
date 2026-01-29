@@ -1,5 +1,6 @@
 from app.repositories.product_repository import ProductRepository, VariantRepository
 from app.repositories.inventory_repository import InventoryRepository
+from app.repositories.catalog_repository import CatalogRepository
 from app.constants.states import ProductState
 import logging
 
@@ -11,6 +12,7 @@ class ProductService:
         self.product_repo = ProductRepository()
         self.variant_repo = VariantRepository()
         self.inventory_repo = InventoryRepository()
+        self.catalog_repo = CatalogRepository()
 
     def search_and_filter_catalog(self, search_text=None, categoria=None, tags=None, disponibilidad=True, skip=0, limit=20):
         """
@@ -203,8 +205,15 @@ class ProductService:
         return self.update_product_state(product_id, ProductState.INACTIVE, admin_id)
 
     def get_categories(self):
-        """Obtiene todas las categorÃ­as disponibles"""
-        return self.product_repo.get_categories()
+        """
+        Obtiene todas las categorías desde la colección categories (no desde productos)
+        Esto permite mostrar categorías disponibles incluso si no hay productos que las usen
+        """
+        categories_docs = self.catalog_repo.list_categories()
+        # Extraer solo los nombres de las categorías
+        categories = [cat['name'] for cat in categories_docs]
+        logger.info(f"Categorías enviadas para nuevo producto desde colección categories: {categories}")
+        return categories
 
     def get_tags(self):
         """Obtiene todos los tags disponibles"""
