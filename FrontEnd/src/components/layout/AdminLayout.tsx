@@ -41,7 +41,7 @@ interface AdminLayoutProps {
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Productos", href: "/admin/products", icon: Package },
-  { name: "CategorÃ­as y Etiquetas", href: "/admin/categories", icon: Tags },
+  { name: "Categorias y Etiquetas", href: "/admin/categories", icon: Tags },
   { name: "Inventario", href: "/admin/inventory", icon: Warehouse },
   { name: "Reservas", href: "/admin/reservations", icon: CalendarClock },
   { name: "Usuarios", href: "/admin/users", icon: Users },
@@ -219,13 +219,6 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             <Home className="h-5 w-5 flex-shrink-0" />
             {!sidebarCollapsed && <span>Ver Tienda</span>}
           </Link>
-          <Link
-            to="/admin/settings"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-900 hover:bg-sidebar-accent hover:text-white transition-colors"
-          >
-            <Settings className="h-5 w-5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>ConfiguraciÃ³n</span>}
-          </Link>
         </div>
       </aside>
 
@@ -346,22 +339,13 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                   Perfil
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link
-                  to="/admin/settings"
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Settings className="h-4 w-4" />
-                  ConfiguraciÃ³n
-                </Link>
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={handleLogout}
                 className="text-destructive cursor-pointer"
               >
                 <LogOut className="h-4 w-4 mr-2" />
-                Cerrar SesiÃ³n
+                Cerrar Sesion
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

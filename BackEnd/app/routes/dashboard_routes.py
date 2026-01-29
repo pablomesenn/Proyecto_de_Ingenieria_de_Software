@@ -36,12 +36,12 @@ def require_admin(f):
 @require_admin
 def get_dashboard_stats():
     """
-    Obtiene estadísticas generales para el dashboard de administración
+    Obtiene estadisticas generales para el dashboard de administracion
     """
     try:
         db = get_db()
         
-        # Estadísticas de reservas
+        # Estadisticas de reservas
         total_reservations = db.reservations.count_documents({})
         pending_reservations = db.reservations.count_documents({'state': ReservationState.PENDING})
         today_reservations = db.reservations.count_documents({
@@ -50,27 +50,37 @@ def get_dashboard_stats():
             }
         })
         
-        # Estadísticas de productos
-        total_products = db.products.count_documents({'state': 'activo'})
+        # Estadisticas de productos - CORREGIDO: usar 'estado' en vez de 'state'
+        total_products = db.products.count_documents({'estado': 'activo'})
         
-        # Productos con stock bajo (menos de 10 unidades)
+        # Productos con stock bajo (menos de 10 unidades disponibles)
         low_stock_count = 0
-        products = list(db.products.find({'state': 'activo'}))
-        for product in products:
-            for variant in product.get('variants', []):
-                inventory = db.inventory.find_one({'variant_id': variant['_id']})
-                if inventory and inventory.get('current_stock', 0) < 10:
-                    low_stock_count += 1
-                    break
+        products = list(db.products.find({'estado': 'activo'}))
         
-        # Estadísticas de usuarios
+        for product in products:
+            # Buscar variantes en la coleccion variants (no dentro del producto)
+            variants = list(db.variants.find({'product_id': product['_id']}))
+            
+            for variant in variants:
+                # CORREGIDO: usar 'stock_total' y calcular disponible
+                inventory = db.inventory.find_one({'variant_id': variant['_id']})
+                if inventory:
+                    stock_total = inventory.get('stock_total', 0)
+                    stock_retenido = inventory.get('stock_retenido', 0)
+                    stock_disponible = stock_total - stock_retenido
+                    
+                    if stock_disponible < 10:
+                        low_stock_count += 1
+                        break
+        
+        # Estadisticas de usuarios
         total_users = db.users.count_documents({})
         this_month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         new_users_this_month = db.users.count_documents({
             'created_at': {'$gte': this_month_start}
         })
         
-        # Alertas activas (reservas por expirar en las próximas 24 horas)
+        # Alertas activas (reservas por expirar en las proximas 24 horas)
         tomorrow = datetime.now() + timedelta(days=1)
         expiring_soon = db.reservations.count_documents({
             'state': ReservationState.PENDING,
@@ -101,7 +111,7 @@ def get_dashboard_stats():
         }), 200
         
     except Exception as e:
-        logger.error(f"Error obteniendo estadísticas del dashboard: {str(e)}")
+        logger.error(f"Error obteniendo estadisticas del dashboard: {str(e)}")
         return jsonify({'error': 'Error interno del servidor'}), 500
 
 
@@ -117,14 +127,14 @@ def get_pending_reservations():
             'state': ReservationState.PENDING
         }).sort('created_at', -1).limit(5))
         
-        # Obtener información del usuario para cada reserva
+        # Obtener informacion del usuario para cada reserva
         db = get_db()
         result = []
         
         for res in reservations:
             user = db.users.find_one({'_id': res['user_id']})
             
-            # Calcular tiempo hasta expiración
+            # Calcular tiempo hasta expiracion
             expires_at = res.get('expires_at')
             expires_in = None
             if expires_at:
@@ -137,14 +147,14 @@ def get_pending_reservations():
                     expires_in = f'{hours} horas'
                 else:
                     days = hours // 24
-                    expires_in = f'{days} días'
+                    expires_in = f'{days} dias'
             
             # Calcular total de unidades
             total_units = sum(item['quantity'] for item in res.get('items', []))
             
             result.append({
                 '_id': str(res['_id']),
-                'customer_name': user.get('name', user.get('email', 'Usuario')),
+                'customer_name': user.get('nombre', user.get('email', 'Usuario')) if user else 'Usuario',
                 'items_count': len(res.get('items', [])),
                 'total_units': total_units,
                 'created_at': res['created_at'].isoformat(),
@@ -163,7 +173,7 @@ def get_pending_reservations():
 @require_admin
 def get_expiring_reservations():
     """
-    Obtiene reservas que están por expirar (próximas 12 horas)
+    Obtiene reservas que estan por expirar (proximas 12 horas)
     """
     try:
         twelve_hours = datetime.now() + timedelta(hours=12)
@@ -194,7 +204,7 @@ def get_expiring_reservations():
             
             result.append({
                 '_id': str(res['_id']),
-                'customer_name': user.get('name', user.get('email', 'Usuario')),
+                'customer_name': user.get('nombre', user.get('email', 'Usuario')) if user else 'Usuario',
                 'expires_in': expires_in
             })
         
@@ -210,25 +220,35 @@ def get_expiring_reservations():
 @require_admin
 def get_low_stock_products():
     """
-    Obtiene productos con stock bajo (menos de 10 unidades)
+    Obtiene productos con stock bajo (menos de 10 unidades disponibles)
     """
     try:
         db = get_db()
-        products = list(db.products.find({'state': 'activo'}))
+        products = list(db.products.find({'estado': 'activo'}))
         
         low_stock_items = []
         
         for product in products:
-            for variant in product.get('variants', []):
+            # Buscar variantes en la coleccion variants
+            variants = list(db.variants.find({'product_id': product['_id']}))
+            
+            for variant in variants:
+                # CORREGIDO: usar 'stock_total' y calcular disponible
                 inventory = db.inventory.find_one({'variant_id': variant['_id']})
-                current_stock = inventory.get('current_stock', 0) if inventory else 0
                 
-                if current_stock < 10:
+                if inventory:
+                    stock_total = inventory.get('stock_total', 0)
+                    stock_retenido = inventory.get('stock_retenido', 0)
+                    stock_disponible = stock_total - stock_retenido
+                else:
+                    stock_disponible = 0
+                
+                if stock_disponible < 10:
                     low_stock_items.append({
                         '_id': str(product['_id']),
-                        'name': product['name'],
-                        'variant_name': variant['name'],
-                        'stock': current_stock
+                        'name': product.get('nombre', 'Producto'),
+                        'variant_name': variant.get('tamano_pieza', 'Variante'),
+                        'stock': stock_disponible
                     })
                     
                     # Limitar a 5 productos

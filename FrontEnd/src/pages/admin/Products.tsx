@@ -290,7 +290,7 @@ const Products = () => {
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                              <Link to={`/admin/products/${product._id}/edit`}>
+                              <Link to={`/admin/products/${product._id}`}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Editar
                               </Link>
