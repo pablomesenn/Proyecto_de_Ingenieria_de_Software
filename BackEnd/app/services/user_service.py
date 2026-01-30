@@ -241,7 +241,7 @@ class UserService:
         
         return True
 
-    def get_all_users(self, skip=0, limit=20):
+    def get_all_users(self, skip=0, limit=100):
         """Obtiene todos los usuarios (ADMIN) + reservationsCount"""
 
         cursor = self.users_collection.find({}).skip(skip).limit(limit) 

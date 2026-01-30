@@ -65,4 +65,4 @@ class UserResponseSchema(Schema):
 class UserListQuerySchema(Schema):
     """Schema para parametros de busqueda de usuarios"""
     skip = fields.Int(required=False, missing=0, validate=validate.Range(min=0))
-    limit = fields.Int(required=False, missing=20, validate=validate.Range(min=1, max=100))
+    limit = fields.Int(required=False, missing=100, validate=validate.Range(min=1, max=100))

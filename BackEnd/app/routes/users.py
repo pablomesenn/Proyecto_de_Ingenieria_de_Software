@@ -145,7 +145,7 @@ def get_users():
         
         users = user_service.get_all_users(
             skip=params.get('skip', 0),
-            limit=params.get('limit', 20)
+            limit=params.get('limit', 100)
         )
         
         return jsonify({
