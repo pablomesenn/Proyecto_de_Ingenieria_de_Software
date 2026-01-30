@@ -345,11 +345,11 @@ class NotificationService:
         
         try:
             # Configurar yagmail
-            gmail_user = os.getenv('GMAIL_USER', 'kermypisos@gmail.com')
-            gmail_app_password = os.getenv('GMAIL_APP_PASSWORD')
+            gmail_user = os.getenv('SMTP_USERNAME', 'kermypisos@gmail.com')
+            gmail_app_password = os.getenv('SMTP_PASSWORD')
             
             if not gmail_app_password:
-                logger.error("GMAIL_APP_PASSWORD no configurado en .env")
+                logger.error("SMTP_PASSWORD no configurado en .env")
                 return
             
             yag = yagmail.SMTP(gmail_user, gmail_app_password)

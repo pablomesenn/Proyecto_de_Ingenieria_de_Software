@@ -94,14 +94,19 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
   const markAsRead = async (id: string) => {
     try {
-      await notificationService.markAsRead(id);
-      // Actualizar estado local
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      // CAMBIO: Eliminar notificación en lugar de solo marcarla como leída
+      await notificationService.deleteNotification(id);
+      
+      // Actualizar estado local - eliminar de la lista
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      
+      // Decrementar contador si no estaba leída
+      const notification = notifications.find((n) => n.id === id);
+      if (notification && !notification.read) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
     } catch (error) {
-      console.error("Error marcando como leída:", error);
+      console.error("Error eliminando notificación:", error);
     }
   };
 
